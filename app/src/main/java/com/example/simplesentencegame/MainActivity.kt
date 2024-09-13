@@ -53,6 +53,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -81,6 +82,8 @@ import com.airbnb.lottie.compose.LottieAnimation
 import com.airbnb.lottie.compose.LottieCompositionSpec
 import com.airbnb.lottie.compose.LottieConstants
 import com.airbnb.lottie.compose.rememberLottieComposition
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -137,13 +140,16 @@ class MainActivity : ComponentActivity() {
                     composable("home") {
                         Column {
                             Text(
-                                text = "App name",
-                                fontSize = 24.sp,
+                                text = stringResource(id = R.string.app_name),
+                                fontSize = 30.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontStyle = FontStyle.Italic,
+                                color = DeepSkyBlue,
                                 modifier = Modifier
-                                    .padding(16.dp)
+                                    .padding(20.dp)
                                     .align(Alignment.CenterHorizontally)
                             )
-                            Spacer(modifier = Modifier.height(16.dp))
+                            // Spacer(modifier = Modifier.height(16.dp))
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -220,7 +226,8 @@ fun HomeScreen(
                     contentColor = Color.Black
                 )
             ) {
-                Text("Learn")
+                Text(text = "Learn",
+                    fontSize = 24.sp)
             }
             Spacer(modifier = Modifier.height(8.dp))
             Button(
@@ -231,7 +238,8 @@ fun HomeScreen(
                     contentColor = Color.Black
                 )
             ) {
-                Text("Stats")
+                Text("Stats",
+                    fontSize = 24.sp)
             }
             Spacer(modifier = Modifier.height(8.dp))
             Button(
@@ -242,7 +250,8 @@ fun HomeScreen(
                     contentColor = Color.Black
                 )
             ) {
-                Text("Extras")
+                Text("Extras",
+                    fontSize = 24.sp)
             }
             Spacer(modifier = Modifier.height(8.dp))
             Button(
@@ -253,7 +262,8 @@ fun HomeScreen(
                     contentColor = Color.Black
                 )
             ) {
-                Text("How to")
+                Text("How to",
+                    fontSize = 24.sp)
             }
             Spacer(modifier = Modifier.height(8.dp))
             Button(
@@ -264,7 +274,8 @@ fun HomeScreen(
                     contentColor = Color.Black
                 )
             ) {
-                Text("Exit")
+                Text("Exit",
+                    fontSize = 24.sp)
             }
         }
     }
@@ -288,6 +299,7 @@ fun SentenceGameApp(
     var showLottieAnimation by remember { mutableStateOf(false) }
     val lottieComposition by rememberLottieComposition(LottieCompositionSpec.Asset("well_done.json"))
 
+    val coroutineScope = rememberCoroutineScope()
     // Load records
     LaunchedEffect(Unit) {
         records = loadRecords(filePath)
@@ -320,20 +332,27 @@ fun SentenceGameApp(
                 onSubmit = {
                     if (userInput.trim().isEmpty()) {
                         gameState = GameState.EXIT
-                    } else if (userInput.trim() == currentRecord?.completeSentence) {
+                    }
+                    else if (userInput.trim() == currentRecord?.completeSentence) {
                         showTickMark = true
                         // showToastWithBeep(context, "Correct!", isCorrect = true)
                         speak(currentRecord.completeSentence) // speak the sentence in NL
 
-                        score += 1 // Increment the score for each correct answer
-                        Log.d(DEBUG, "onSubmit: score=$score")
-                        if (score >= MAX_SCORE) {
-                            Log.d(DEBUG, "onSubmit: score=$score >= MAX_SCORE")
-                            showLottieAnimation = true
-                        }
-                        currentRecordIndex = (currentRecordIndex + 1) % records.size
-                        userInput = ""
-                    } else {
+                        // FIX HERE: need to wait for user to hear the sentence before continuing
+                        coroutineScope.launch {
+                            // FIX HERE: Wait 1.5 seconds after the sentence is spoken
+                            delay(2500)
+
+                            // Continue with the rest of the logic after the delay
+                            score += 1 // Increment the score for each correct answer
+                            Log.d(DEBUG, "onSubmit: score=$score")
+                            if (score >= MAX_SCORE) {
+                                Log.d(DEBUG, "onSubmit: score=$score >= MAX_SCORE")
+                                showLottieAnimation = true
+                            }
+                            currentRecordIndex = (currentRecordIndex + 1) % records.size
+                            userInput = ""
+                        }                    } else {
                         showToastWithBeep(context, "Try again!", isCorrect = false)
                     }
                 },
@@ -341,13 +360,13 @@ fun SentenceGameApp(
             )
             if (showTickMark) {
                 LaunchedEffect(Unit) {
-                    kotlinx.coroutines.delay(1000)
+                    delay(2500)
                     showTickMark = false
                 }
             }
             if (showLottieAnimation) {
                 LaunchedEffect(Unit) {
-                    kotlinx.coroutines.delay(3000) // Show Lottie animation for 3 seconds
+                    delay(3000) // Show Lottie animation for 3 seconds
                     showLottieAnimation = false
                     score = 0 // Reset score after showing Lottie
                 }
@@ -399,7 +418,7 @@ fun GameScreen(
 
     LaunchedEffect(gameSentence, refreshButton) {
         displayCompleteSentence = true
-        kotlinx.coroutines.delay(calculatedDelay.toLong()) // Show completeSentence for calculated time
+        delay(calculatedDelay.toLong()) // Show completeSentence for calculated time
         displayCompleteSentence = false
     }
 
