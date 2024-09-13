@@ -1,0 +1,28 @@
+<resources>
+    <string name="app_name">BrioQ</string>
+    <string name="game_instructions">This app helps you learn Dutch vocabulary.\n\n
+Learning a language requires repetition and listening. This app focuses on teaching the core vocabulary needed to understand the language.\n\n
+If you are really dedicated, you can learn the 500 most often used words in the language within a month! And the core vocabulary within two months!\n\n
+In this app, you:\n\n
+1. Learn words in simple sentences and hear the pronunciation.\n
+2. Practice what you learn using easy games.\n
+3. Test your knowledge.\n
+4. Add words.\n
+
+Make sure you… Repeat, Repeat, Repeat! ☺\n
+
+You learn by entering the words in short sentences and the hearing the words.\n\n
+When you feel comfortable with the words you have learned, you can play different games to practice what you have learned. You can also test your knowledge to pass a level and move to the next level. Each level has 20 words. Each level builds on the previous. You can opt to go to the next level and add those words.\n\n
+
+Use the menu at the top to go to Game, etc.\n\n
+
+1. Learning\n\n
+The complete sentence appears briefly and then some of the characters are blanked. Click the refresh icon to see the complete sentence again. Your challenge is to enter the entire sentence.\n\n
+2. Games\n\n
+After learning for a while, you can practice what you have learned using the games listed in the menu at the top.\n\n
+The Simple game is similar to when you were learning, except that you cannot see the complete sentence.\n\n
+The Dutch game displays a sentence you learned and you enter the English translation.\n\n
+The English game displays the English translation and you enter the Dutch sentence.\n\n
+
+</string>
+</resources>
