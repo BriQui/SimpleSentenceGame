@@ -153,7 +153,7 @@ class MainActivity : ComponentActivity() {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(240.dp)
+                                    .height(180.dp)
                             ) {
                                 Image(
                                     painter = painterResource(id = R.drawable.ic_launcher_playstore),
@@ -165,6 +165,7 @@ class MainActivity : ComponentActivity() {
                             Spacer(modifier = Modifier.height(16.dp))
                             HomeScreen(
                                 onLearnClicked = { navController.navigate("learn") },
+                                onGame1Clicked = { navController.navigate("game1") },
                                 onStatsClicked = { navController.navigate("stats") },
                                 onExtrasClicked = { navController.navigate("extras") },
                                 onHowToClicked = { navController.navigate("howto") },
@@ -173,7 +174,10 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     composable("learn") {
-                        SentenceGameApp(navController, filePath, this@MainActivity) { text -> text.speak(tts) }
+                        LearnSentences(navController, filePath, this@MainActivity) { text -> text.speak(tts) }
+                    }
+                    composable("game1") {
+                        LearnSentences(navController, filePath, this@MainActivity) { text -> text.speak(tts) }
                     }
                     composable("stats") {
                         StatsScreen(navController)
@@ -204,6 +208,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun HomeScreen(
     onLearnClicked: () -> Unit,
+    onGame1Clicked: () -> Unit,
     onStatsClicked: () -> Unit,
     onExtrasClicked: () -> Unit,
     onHowToClicked: () -> Unit,
@@ -227,7 +232,19 @@ fun HomeScreen(
                 )
             ) {
                 Text(text = "Learn",
-                    fontSize = 24.sp)
+                    fontSize = 18.sp)
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(
+                onClick = onGame1Clicked,
+                modifier = Modifier.width(buttonWidth),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = DeepSkyBlue,
+                    contentColor = Color.Black
+                )
+            ) {
+                Text("Game1",
+                    fontSize = 18.sp)
             }
             Spacer(modifier = Modifier.height(8.dp))
             Button(
@@ -239,7 +256,7 @@ fun HomeScreen(
                 )
             ) {
                 Text("Stats",
-                    fontSize = 24.sp)
+                    fontSize = 18.sp)
             }
             Spacer(modifier = Modifier.height(8.dp))
             Button(
@@ -251,7 +268,7 @@ fun HomeScreen(
                 )
             ) {
                 Text("Extras",
-                    fontSize = 24.sp)
+                    fontSize = 18.sp)
             }
             Spacer(modifier = Modifier.height(8.dp))
             Button(
@@ -263,7 +280,7 @@ fun HomeScreen(
                 )
             ) {
                 Text("How to",
-                    fontSize = 24.sp)
+                    fontSize = 18.sp)
             }
             Spacer(modifier = Modifier.height(8.dp))
             Button(
@@ -275,7 +292,7 @@ fun HomeScreen(
                 )
             ) {
                 Text("Exit",
-                    fontSize = 24.sp)
+                    fontSize = 18.sp)
             }
         }
     }
@@ -283,7 +300,7 @@ fun HomeScreen(
 
 @ExperimentalMaterial3Api
 @Composable
-fun SentenceGameApp(
+fun LearnSentences(
     navController: NavController,
     filePath: String,
     context: MainActivity,
