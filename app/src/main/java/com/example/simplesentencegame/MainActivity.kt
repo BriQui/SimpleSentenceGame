@@ -77,7 +77,6 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.airbnb.lottie.LottieComposition
 import com.airbnb.lottie.compose.LottieAnimation
 import com.airbnb.lottie.compose.LottieCompositionSpec
 import com.airbnb.lottie.compose.LottieConstants
@@ -191,7 +190,6 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-
     // Clean up TextToSpeech resources when activity is destroyed
     override fun onDestroy() {
         super.onDestroy()
@@ -299,14 +297,13 @@ fun LearnSentences(
     navController: NavController,
     records: List<SentenceRecord>,
     context: MainActivity,
-    speak: (String) -> Unit) {
-
+    speak: (String) -> Unit
+) {
     // State variables
-
     var currentRecordIndex by remember { mutableIntStateOf(0) }
     var userInput by remember { mutableStateOf("") }
     var showTickMark by remember { mutableStateOf(false) }
-    var score by remember { mutableIntStateOf(0) } // Track the score
+    var score by remember { mutableIntStateOf(0) }
     var showLottieAnimation by remember { mutableStateOf(false) }
     val lottieComposition by rememberLottieComposition(LottieCompositionSpec.Asset("well_done.json"))
 
@@ -315,62 +312,7 @@ fun LearnSentences(
     // Ensure valid currentRecordIndex within records range
     val currentRecord = if (records.isNotEmpty()) records[currentRecordIndex] else null
 
-    GameScreen(
-        navController = navController,
-        gameSentence = currentRecord?.gameSentence ?: "",
-        completeSentence = currentRecord?.completeSentence ?: "",
-        userInput = userInput,
-        showTickMark = showTickMark,
-        translation = currentRecord?.translation ?: "",
-        progressScore = score,
-        maxScore = MAX_SCORE,
-        showLottieAnimation = showLottieAnimation,
-        lottieComposition = lottieComposition,
-        onUserInputChange = { userInput = it },
-        onSubmit = {
-            if (userInput.trim() == currentRecord?.completeSentence) {
-                showTickMark = true
-                // showToastWithBeep(context, "Correct!", isCorrect = true)
-                speak(currentRecord.completeSentence) // speak the sentence in NL
-
-                // FIX HERE: need to wait for user to hear the sentence before continuing
-                coroutineScope.launch {
-                    // FIX HERE: Wait 1.5 seconds after the sentence is spoken
-                    delay(2500)
-
-                    // Continue with the rest of the logic after the delay
-                    score += 1 // Increment the score for each correct answer
-                    Log.d(DEBUG, "onSubmit: score=$score")
-                    if (score >= MAX_SCORE) {
-                        Log.d(DEBUG, "onSubmit: score=$score >= MAX_SCORE")
-                        showLottieAnimation = true
-                    }
-                    currentRecordIndex = (currentRecordIndex + 1) % records.size
-                    userInput = ""
-                }                    } else {
-                showToastWithBeep(context, "Try again!", isCorrect = false)
-            }
-        },
-        onExit = { context.finish() }
-    )
-}
-@ExperimentalMaterial3Api
-@Composable
-fun GameScreen(
-    navController: NavController,
-    gameSentence: String,
-    completeSentence: String,
-    translation: String,
-    userInput: String,
-    showTickMark: Boolean,
-    progressScore: Int,
-    maxScore: Int,
-    showLottieAnimation: Boolean,
-    lottieComposition: LottieComposition?,
-    onUserInputChange: (String) -> Unit,
-    onSubmit: () -> Unit,
-    onExit: () -> Unit
-) {
+    // Combine the logic of GameScreen here
     val textStyle = TextStyle(
         fontSize = 16.sp,
         fontWeight = FontWeight.Normal,
@@ -382,20 +324,19 @@ fun GameScreen(
     var displayCompleteSentence by remember { mutableStateOf(true) }
     var refreshButton by remember { mutableIntStateOf(0) }
 
-    val timeFactorPerChar = TIME_FACTOR_PER_CHAR // milliseconds per character
-    val calculatedDelay = completeSentence.length * timeFactorPerChar
+    val timeFactorPerChar = TIME_FACTOR_PER_CHAR
+    val calculatedDelay = currentRecord?.completeSentence?.length?.times(timeFactorPerChar) ?: 0
 
-    LaunchedEffect(gameSentence, refreshButton) {
+    LaunchedEffect(currentRecord?.gameSentence, refreshButton) {
         displayCompleteSentence = true
-        delay(calculatedDelay.toLong()) // Show completeSentence for calculated time
+        delay(calculatedDelay.toLong())
         displayCompleteSentence = false
     }
 
     fun onRefresh() {
-        refreshButton += 1 // Increment to trigger recomposition
+        refreshButton += 1
     }
 
-    // Request focus when the composable first loads
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
     }
@@ -404,9 +345,7 @@ fun GameScreen(
         topBar = {
             TopAppBar(
                 title = { Text(text = stringResource(id = R.string.app_name)) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = DeepSkyBlue
-                ),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = DeepSkyBlue),
                 navigationIcon = {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -416,17 +355,15 @@ fun GameScreen(
                     ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Back", style = MaterialTheme.typography.bodyLarge) // Updated to Material3 style
+                        Text("Back", style = MaterialTheme.typography.bodyLarge)
                     }
                 },
                 actions = {
-                    // Exit game
-                    IconButton(onClick = { onExit() },
+                    IconButton(onClick = { context.finish() },
                         modifier = Modifier.width(100.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Exit")
-                            // Spacer(modifier = Modifier.width(4.dp))
                             Text(text = "Exit")
                         }
                     }
@@ -442,16 +379,10 @@ fun GameScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Top
             ) {
-                // Box for OutlinedTextField to contain refresh button
                 Spacer(modifier = Modifier.height(16.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                    // .border(2.dp, Color.Black) // Adding outline
-                ) {
-                    // OutlinedTextField for gameSentence
+                Box(modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
-                        value = if (displayCompleteSentence) completeSentence else gameSentence,
+                        value = if (displayCompleteSentence) currentRecord?.completeSentence ?: "" else currentRecord?.gameSentence ?: "",
                         onValueChange = {},
                         readOnly = true,
                         modifier = Modifier
@@ -459,36 +390,31 @@ fun GameScreen(
                             .fillMaxWidth(),
                         textStyle = textStyle
                     )
-                    // Refresh button
                     Box(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
-                            .padding(top = 16.dp) // Padding only from the top
-                            .size(20.dp) // Shrink the Box size without affecting the icon
-                            .background(
-                                color = DeepSkyBlue, // Background color
-                                shape = RoundedCornerShape(8.dp) // Shape of the corners
-                            )
+                            .padding(top = 16.dp)
+                            .size(20.dp)
+                            .background(color = DeepSkyBlue, shape = RoundedCornerShape(8.dp))
                     ) {
                         IconButton(
                             onClick = { onRefresh() },
-                            modifier = Modifier.fillMaxSize() // Ensure the IconButton takes up the Box's full size
+                            modifier = Modifier.fillMaxSize()
                         ) {
                             Icon(
                                 Icons.Filled.Refresh,
                                 contentDescription = "Refresh",
-                                tint = Color.Black, // Icon color
-                                modifier = Modifier.size(24.dp) // Adjust icon size if needed (optional)
+                                tint = Color.Black,
+                                modifier = Modifier.size(24.dp)
                             )
                         }
                     }
                 }
-                
-                // user input
+
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = userInput,
-                    onValueChange = onUserInputChange,
+                    onValueChange = { userInput = it },
                     label = { Text("Enter full sentence here…") },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -496,58 +422,80 @@ fun GameScreen(
                         .onKeyEvent { event ->
                             when (event.key) {
                                 Key.Tab, Key.Enter -> {
-                                    if (userInput
-                                            .trim()
-                                            .isNotEmpty()
-                                    ) {
-                                        onSubmit()
+                                    if (userInput.trim().isNotEmpty()) {
+                                        if (userInput.trim() == currentRecord?.completeSentence) {
+                                            showTickMark = true
+                                            speak(currentRecord.completeSentence)
+                                            coroutineScope.launch {
+                                                delay(2500)
+                                                score += 1
+                                                if (score >= MAX_SCORE) {
+                                                    showLottieAnimation = true
+                                                }
+                                                currentRecordIndex = (currentRecordIndex + 1) % records.size
+                                                userInput = ""
+                                            }
+                                        } else {
+                                            showToastWithBeep(context, "Try again!", isCorrect = false)
+                                        }
                                     }
                                     true
                                 }
-
                                 else -> false
                             }
                         },
                     textStyle = textStyle
                 )
-                
-                // submit button
+
                 Spacer(modifier = Modifier.height(2.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End // Align the button to the right
+                    horizontalArrangement = Arrangement.End
                 ) {
                     Button(
-                        onClick = { onSubmit() },
-                        modifier = Modifier
-                            .height(28.dp), // Set the overall button height
+                        onClick = {
+                            if (userInput.trim() == currentRecord?.completeSentence) {
+                                showTickMark = true
+                                speak(currentRecord.completeSentence)
+                                coroutineScope.launch {
+                                    delay(2500)
+                                    score += 1
+                                    if (score >= MAX_SCORE) {
+                                        showLottieAnimation = true
+                                    }
+                                    currentRecordIndex = (currentRecordIndex + 1) % records.size
+                                    userInput = ""
+                                }
+                            } else {
+                                showToastWithBeep(context, "Try again!", isCorrect = false)
+                            }
+                        },
+                        modifier = Modifier.height(28.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = DeepSkyBlue,
-                            contentColor = Color.Black // Set dark text color
+                            contentColor = Color.Black
                         ),
-                        shape = RoundedCornerShape(4.dp), // Adjust the dp value for square edges
-                        contentPadding = PaddingValues(4.dp) // Reduce the internal padding
+                        shape = RoundedCornerShape(4.dp),
+                        contentPadding = PaddingValues(4.dp)
                     ) {
                         Text(
                             text = "Submit",
-                            style = MaterialTheme.typography.bodySmall // Use a smaller text style
+                            style = MaterialTheme.typography.bodySmall
                         )
                     }
                 }
 
-                // translation
                 Spacer(modifier = Modifier.height(16.dp))
                 OutlinedTextField(
-                    value = translation,
+                    value = currentRecord?.translation ?: "",
                     onValueChange = {},
                     readOnly = true,
                     modifier = Modifier.fillMaxWidth(),
                     textStyle = textStyle
                 )
 
-                // Progress Bar for score
                 Spacer(modifier = Modifier.height(16.dp))
-                val progress = progressScore / maxScore.toFloat()
+                val progress = score / MAX_SCORE.toFloat()
                 Text(text = "Progress: ${(progress * 100).toInt()}%")
                 Box(
                     contentAlignment = Alignment.Center,
@@ -560,12 +508,11 @@ fun GameScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(25.dp),
-                        color = LightGreen
+                        color = LightGreen,
                     )
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
-                // Conditionally show the tick mark
                 if (showTickMark) {
                     Image(
                         painter = painterResource(id = R.drawable.tick_mark),
@@ -577,12 +524,11 @@ fun GameScreen(
                 }
             }
 
-            // Lottie Animation when score reaches MAX_SCORE
             if (showLottieAnimation) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopCenter)
-                        .fillMaxSize() // Ensures the Box fills the available space
+                        .fillMaxSize()
                         .padding(top = 24.dp)
                 ) {
                     LottieAnimation(
@@ -590,7 +536,7 @@ fun GameScreen(
                         iterations = LottieConstants.IterateForever,
                         modifier = Modifier
                             .size(LOTTIE_SIZE.dp)
-                            .align(Alignment.TopCenter) // Centers the animation in its Box
+                            .align(Alignment.TopCenter)
                     )
                     Text(
                         text = "You got $MAX_SCORE correct answers… very cool!",
