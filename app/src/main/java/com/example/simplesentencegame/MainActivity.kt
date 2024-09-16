@@ -100,10 +100,6 @@ const val DEBUG = "BQ_DEBUG"
 // const val BUTTON_HEIGHT = 35
 // val tonedDownButtonColor = Color.Blue.copy(alpha = 0.7f)
 const val LOTTIE_SIZE = 400
-enum class GameState {
-    PREPARING, PLAYING, NO_RECORDS, EXIT
-}
-
 @Serializable
 data class SentenceRecord(val id: Int, val completeSentence: String, val gameSentence: String, val translation: String)
 
@@ -132,6 +128,9 @@ class MainActivity : ComponentActivity() {
         }
 
         val filePath = "${this.filesDir.path}/$FILENAME"
+        val records = loadRecords(filePath)
+        if (records.isEmpty()) throw Exception ("Empty data file!!!")
+
         setContent {
             val navController = rememberNavController()
 
@@ -169,15 +168,15 @@ class MainActivity : ComponentActivity() {
                                 onStatsClicked = { navController.navigate("stats") },
                                 onExtrasClicked = { navController.navigate("extras") },
                                 onHowToClicked = { navController.navigate("howto") },
-                                onExitClicked = { exitApp() }
+                                onExitClicked = { finish() }
                             )
                         }
                     }
                     composable("learn") {
-                        LearnSentences(navController, filePath, this@MainActivity) { text -> text.speak(tts) }
+                        LearnSentences(navController, records, this@MainActivity) { text -> text.speak(tts) }
                     }
                     composable("game1") {
-                        LearnSentences(navController, filePath, this@MainActivity) { text -> text.speak(tts) }
+                        LearnSentences(navController, records, this@MainActivity) { text -> text.speak(tts) }
                     }
                     composable("stats") {
                         StatsScreen(navController)
@@ -198,10 +197,6 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
         tts.stop()
         tts.shutdown()
-    }
-
-    fun exitApp() {
-        finishAffinity()
     }
 }
 
@@ -302,102 +297,62 @@ fun HomeScreen(
 @Composable
 fun LearnSentences(
     navController: NavController,
-    filePath: String,
+    records: List<SentenceRecord>,
     context: MainActivity,
     speak: (String) -> Unit) {
 
     // State variables
-    var records by remember { mutableStateOf(emptyList<SentenceRecord>()) }
+
     var currentRecordIndex by remember { mutableIntStateOf(0) }
     var userInput by remember { mutableStateOf("") }
-    var gameState by remember { mutableStateOf(GameState.PREPARING) }
     var showTickMark by remember { mutableStateOf(false) }
     var score by remember { mutableIntStateOf(0) } // Track the score
     var showLottieAnimation by remember { mutableStateOf(false) }
     val lottieComposition by rememberLottieComposition(LottieCompositionSpec.Asset("well_done.json"))
 
     val coroutineScope = rememberCoroutineScope()
-    // Load records
-    LaunchedEffect(Unit) {
-        records = loadRecords(filePath)
-        if (records.isNotEmpty()) {
-            currentRecordIndex = 0
-            gameState = GameState.PLAYING
-        } else {
-            gameState = GameState.NO_RECORDS
-        }
-    }
 
     // Ensure valid currentRecordIndex within records range
     val currentRecord = if (records.isNotEmpty()) records[currentRecordIndex] else null
 
-    when (gameState) {
-        GameState.PLAYING -> {
-            // when LottieAnimation used here it displays okay
-            GameScreen(
-                navController = navController,
-                gameSentence = currentRecord?.gameSentence ?: "",
-                completeSentence = currentRecord?.completeSentence ?: "",
-                userInput = userInput,
-                showTickMark = showTickMark,
-                translation = currentRecord?.translation ?: "",
-                progressScore = score,
-                maxScore = MAX_SCORE,
-                showLottieAnimation = showLottieAnimation,
-                lottieComposition = lottieComposition,
-                onUserInputChange = { userInput = it },
-                onSubmit = {
-                    if (userInput.trim() == currentRecord?.completeSentence) {
-                        showTickMark = true
-                        // showToastWithBeep(context, "Correct!", isCorrect = true)
-                        speak(currentRecord.completeSentence) // speak the sentence in NL
+    GameScreen(
+        navController = navController,
+        gameSentence = currentRecord?.gameSentence ?: "",
+        completeSentence = currentRecord?.completeSentence ?: "",
+        userInput = userInput,
+        showTickMark = showTickMark,
+        translation = currentRecord?.translation ?: "",
+        progressScore = score,
+        maxScore = MAX_SCORE,
+        showLottieAnimation = showLottieAnimation,
+        lottieComposition = lottieComposition,
+        onUserInputChange = { userInput = it },
+        onSubmit = {
+            if (userInput.trim() == currentRecord?.completeSentence) {
+                showTickMark = true
+                // showToastWithBeep(context, "Correct!", isCorrect = true)
+                speak(currentRecord.completeSentence) // speak the sentence in NL
 
-                        // FIX HERE: need to wait for user to hear the sentence before continuing
-                        coroutineScope.launch {
-                            // FIX HERE: Wait 1.5 seconds after the sentence is spoken
-                            delay(2500)
-
-                            // Continue with the rest of the logic after the delay
-                            score += 1 // Increment the score for each correct answer
-                            Log.d(DEBUG, "onSubmit: score=$score")
-                            if (score >= MAX_SCORE) {
-                                Log.d(DEBUG, "onSubmit: score=$score >= MAX_SCORE")
-                                showLottieAnimation = true
-                            }
-                            currentRecordIndex = (currentRecordIndex + 1) % records.size
-                            userInput = ""
-                        }                    } else {
-                        showToastWithBeep(context, "Try again!", isCorrect = false)
-                    }
-                },
-                onExit = { gameState = GameState.EXIT }
-            )
-            if (showTickMark) {
-                LaunchedEffect(Unit) {
+                // FIX HERE: need to wait for user to hear the sentence before continuing
+                coroutineScope.launch {
+                    // FIX HERE: Wait 1.5 seconds after the sentence is spoken
                     delay(2500)
-                    showTickMark = false
-                }
+
+                    // Continue with the rest of the logic after the delay
+                    score += 1 // Increment the score for each correct answer
+                    Log.d(DEBUG, "onSubmit: score=$score")
+                    if (score >= MAX_SCORE) {
+                        Log.d(DEBUG, "onSubmit: score=$score >= MAX_SCORE")
+                        showLottieAnimation = true
+                    }
+                    currentRecordIndex = (currentRecordIndex + 1) % records.size
+                    userInput = ""
+                }                    } else {
+                showToastWithBeep(context, "Try again!", isCorrect = false)
             }
-            if (showLottieAnimation) {
-                LaunchedEffect(Unit) {
-                    delay(3000) // Show Lottie animation for 3 seconds
-                    showLottieAnimation = false
-                    score = 0 // Reset score after showing Lottie
-                }
-            }
-        }
-        GameState.NO_RECORDS -> {
-            NoRecordsScreen()
-        }
-        GameState.EXIT -> {
-            LaunchedEffect(Unit) {
-                context.exitApp()
-            }
-        }
-        else -> {
-            // Optionally handle unexpected game states
-        }
-    }
+        },
+        onExit = { context.finish() }
+    )
 }
 @ExperimentalMaterial3Api
 @Composable
@@ -654,17 +609,6 @@ fun GameScreen(
         }
     }
 }
-
-@Composable
-fun NoRecordsScreen() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(text = "Cannot play game. No sentences found.")
-    }
-}
-
 fun loadRecords(filePath: String): List<SentenceRecord> {
     // Log.d(DEBUG, "loadRecords: filePath=$filePath")
     val file = File(filePath)

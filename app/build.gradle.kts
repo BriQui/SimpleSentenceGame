@@ -2,7 +2,7 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.serialization")
-    // id("org.jetbrains.compose") version "1.5.3" // Uncomment if using Jetpack Compose
+    id("org.jetbrains.compose") version "1.5.3"
 }
 
 android {
@@ -56,8 +56,6 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
-
-    // implementation(platform(libs.androidx.compose.bom))
     implementation(platform("androidx.compose:compose-bom:2024.09.00"))
 
     implementation(libs.androidx.ui)
@@ -81,6 +79,5 @@ dependencies {
     implementation("androidx.compose.material:material")
 
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.5.1")
-
     implementation("com.airbnb.android:lottie-compose:6.0.0")
 }
