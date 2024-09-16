@@ -347,10 +347,7 @@ fun LearnSentences(
                 lottieComposition = lottieComposition,
                 onUserInputChange = { userInput = it },
                 onSubmit = {
-                    if (userInput.trim().isEmpty()) {
-                        gameState = GameState.EXIT
-                    }
-                    else if (userInput.trim() == currentRecord?.completeSentence) {
+                    if (userInput.trim() == currentRecord?.completeSentence) {
                         showTickMark = true
                         // showToastWithBeep(context, "Correct!", isCorrect = true)
                         speak(currentRecord.completeSentence) // speak the sentence in NL
