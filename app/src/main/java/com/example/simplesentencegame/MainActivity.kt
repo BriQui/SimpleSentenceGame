@@ -71,6 +71,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -128,7 +129,7 @@ class MainActivity : ComponentActivity() {
 
         val filePath = "${this.filesDir.path}/$FILENAME"
         val records = loadRecords(filePath)
-        if (records.isEmpty()) throw Exception ("Empty data file!!!")
+        if (records.isEmpty()) throw Exception ("Bad data file!!!")
 
         setContent {
             val navController = rememberNavController()
@@ -343,31 +344,9 @@ fun LearnSentences(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(text = stringResource(id = R.string.app_name)) },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = DeepSkyBlue),
-                navigationIcon = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .clickable { navController.navigateUp() }
-                            .padding(horizontal = 16.dp)
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Back", style = MaterialTheme.typography.bodyLarge)
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { context.finish() },
-                        modifier = Modifier.width(100.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Exit")
-                            Text(text = "Exit")
-                        }
-                    }
-                }
+            CustomTopAppBar(
+                navController = navController,
+                context = context
             )
         }
     ) { paddingValues ->
@@ -662,4 +641,35 @@ fun HowToScreen(navController: NavController) {
             Text("Back to Home")
         }
     }
+}
+@ExperimentalMaterial3Api
+@Composable
+fun CustomTopAppBar(
+    navController: NavController,
+    context: MainActivity
+) {
+    TopAppBar(
+        title = { Text(text = stringResource(id = R.string.app_name), overflow = TextOverflow.Ellipsis) },
+        colors = TopAppBarDefaults.topAppBarColors(containerColor = DeepSkyBlue),
+        navigationIcon = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clickable { navController.navigateUp() }
+                    .padding(horizontal = 16.dp)
+            ) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Back", style = MaterialTheme.typography.bodyLarge)
+            }
+        },
+        actions = {
+            IconButton(onClick = { context.finish() }, modifier = Modifier.width(100.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Exit")
+                    Text(text = "Exit")
+                }
+            }
+        }
+    )
 }
