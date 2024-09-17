@@ -1,6 +1,5 @@
 package com.example.simplesentencegame
 
-import android.app.Activity
 import android.media.AudioManager
 import android.media.ToneGenerator
 import android.os.Bundle
@@ -65,7 +64,6 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -274,12 +272,17 @@ fun LearnSentences(
 
     // Ensure valid currentRecordIndex within records range
     val currentRecord = if (records.isNotEmpty()) records[currentRecordIndex] else null
+    val completeSentence = currentRecord!!.completeSentence
+    val inCompleteSentence = currentRecord.gameSentence
+    val translation = currentRecord.translation
 
-    // Combine the logic of GameScreen here
+    val timeFactorPerChar = TIME_FACTOR_PER_CHAR // how long to display sentence, i.e. delay.
+    val calculatedDelay = completeSentence.length.times(timeFactorPerChar)
+
     val textStyle = TextStyle(
         fontSize = 16.sp,
         fontWeight = FontWeight.Normal,
-        fontFamily = monoSpace // Apply monospaced font
+        fontFamily = monoSpace // so sentences align on screen for user
     )
 
     val focusRequester = remember { FocusRequester() }
@@ -287,10 +290,7 @@ fun LearnSentences(
     var displayCompleteSentence by remember { mutableStateOf(true) }
     var refreshButton by remember { mutableIntStateOf(0) }
 
-    val timeFactorPerChar = TIME_FACTOR_PER_CHAR
-    val calculatedDelay = currentRecord?.completeSentence?.length?.times(timeFactorPerChar) ?: 0
-
-    LaunchedEffect(currentRecord?.gameSentence, refreshButton) {
+    LaunchedEffect(inCompleteSentence, refreshButton) {
         displayCompleteSentence = true
         delay(calculatedDelay.toLong())
         displayCompleteSentence = false
@@ -323,7 +323,7 @@ fun LearnSentences(
                 Spacer(modifier = Modifier.height(16.dp))
                 Box(modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
-                        value = if (displayCompleteSentence) currentRecord?.completeSentence ?: "" else currentRecord?.gameSentence ?: "",
+                        value = if (displayCompleteSentence) completeSentence else inCompleteSentence,
                         onValueChange = {},
                         readOnly = true,
                         modifier = Modifier
@@ -364,9 +364,9 @@ fun LearnSentences(
                             when (event.key) {
                                 Key.Tab, Key.Enter -> {
                                     if (userInput.trim().isNotEmpty()) {
-                                        if (userInput.trim() == currentRecord?.completeSentence) {
+                                        if (userInput.trim() == completeSentence) {
                                             showTickMark = true
-                                            speak(currentRecord.completeSentence)
+                                            speak(completeSentence)
                                             coroutineScope.launch {
                                                 delay(2500)
                                                 score += 1
@@ -395,9 +395,9 @@ fun LearnSentences(
                 ) {
                     Button(
                         onClick = {
-                            if (userInput.trim() == currentRecord?.completeSentence) {
+                            if (userInput.trim() == completeSentence) {
                                 showTickMark = true
-                                speak(currentRecord.completeSentence)
+                                speak(completeSentence)
                                 coroutineScope.launch {
                                     delay(2500)
                                     score += 1
@@ -428,7 +428,7 @@ fun LearnSentences(
 
                 Spacer(modifier = Modifier.height(16.dp))
                 OutlinedTextField(
-                    value = currentRecord?.translation ?: "",
+                    value = translation,
                     onValueChange = {},
                     readOnly = true,
                     modifier = Modifier.fillMaxWidth(),
