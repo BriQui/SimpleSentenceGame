@@ -273,7 +273,7 @@ fun LearnSentences(
     // Ensure valid currentRecordIndex within records range
     val currentRecord = if (records.isNotEmpty()) records[currentRecordIndex] else null
     val completeSentence = currentRecord!!.completeSentence // should never throw exception
-    val inCompleteSentence = currentRecord.gameSentence
+    val testSentence = currentRecord.gameSentence
     val translation = currentRecord.translation
 
     val timeFactorPerChar = TIME_FACTOR_PER_CHAR // how long to display sentence, i.e. delay.
@@ -287,13 +287,13 @@ fun LearnSentences(
 
     val focusRequester = remember { FocusRequester() }
 
-    var displayCompleteSentence by remember { mutableStateOf(true) }
+    var flashCompleteSentence by remember { mutableStateOf(true) }
     var refreshButton by remember { mutableIntStateOf(0) }
 
-    LaunchedEffect(inCompleteSentence, refreshButton) {
-        displayCompleteSentence = true
+    LaunchedEffect(testSentence, refreshButton) {
+        flashCompleteSentence = true
         delay(calculatedDelay.toLong())
-        displayCompleteSentence = false
+        flashCompleteSentence = false
     }
 
     fun onRefresh() {
@@ -324,9 +324,9 @@ fun LearnSentences(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 SentenceDisplay(
-                    displayCompleteSentence = displayCompleteSentence,
+                    flashCompleteSentence = flashCompleteSentence,
                     completeSentence = completeSentence,
-                    inCompleteSentence = inCompleteSentence,
+                    testSentence = testSentence,
                     onRefresh = { onRefresh() },
                     textStyle = textStyle
                 )
@@ -478,15 +478,15 @@ fun LearnSentences(
 }
 @Composable
 fun SentenceDisplay(
-    displayCompleteSentence: Boolean,
+    flashCompleteSentence: Boolean,
     completeSentence: String,
-    inCompleteSentence: String,
+    testSentence: String,
     onRefresh: () -> Unit,
     textStyle: TextStyle
 ) {
     Box(modifier = Modifier.fillMaxWidth()) {
         OutlinedTextField(
-            value = if (displayCompleteSentence) completeSentence else inCompleteSentence,
+            value = if (flashCompleteSentence) completeSentence else testSentence,
             onValueChange = {},
             readOnly = true,
             modifier = Modifier
