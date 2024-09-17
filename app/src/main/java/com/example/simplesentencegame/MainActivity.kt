@@ -1,5 +1,6 @@
 package com.example.simplesentencegame
 
+import android.app.Activity
 import android.media.AudioManager
 import android.media.ToneGenerator
 import android.os.Bundle
@@ -64,6 +65,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -72,6 +74,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -129,68 +132,66 @@ class MainActivity : ComponentActivity() {
 
         val filePath = "${this.filesDir.path}/$FILENAME"
         val records = loadRecords(filePath)
-        if (records.isEmpty()) throw Exception ("Bad data file!!!")
+        if (records.isEmpty()) throw Exception("Bad data file!!!")
 
         setContent {
             val navController = rememberNavController()
 
-            Column {
-                NavHost(navController = navController, startDestination = "home") {
-                    composable("home") {
-                        Column {
-                            Text(
-                                text = stringResource(id = R.string.app_name),
-                                fontSize = 30.sp,
-                                fontWeight = FontWeight.Bold,
-                                fontStyle = FontStyle.Italic,
-                                color = DeepSkyBlue,
-                                modifier = Modifier
-                                    .padding(20.dp)
-                                    .align(Alignment.CenterHorizontally)
+            NavHost(navController = navController, startDestination = "home") {
+                composable("home") {
+                    BoxWithConstraints(
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        val buttonWidth = maxWidth / 2 // Half of the screen width
+
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            // App name header and app image
+                            AppHeaderWithImage()
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            val buttonConfigurations = listOf(
+                                ButtonConfig("Learn") { navController.navigate("learn") },
+                                ButtonConfig("Game1") { navController.navigate("game1") },
+                                ButtonConfig("Stats") { navController.navigate("stats") },
+                                ButtonConfig("Extras") { navController.navigate("extras") },
+                                ButtonConfig("How to") { navController.navigate("howto") },
+                                ButtonConfig("Exit") { this@MainActivity.finish() }
                             )
-                            // Spacer(modifier = Modifier.height(16.dp))
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(180.dp)
-                            ) {
-                                Image(
-                                    painter = painterResource(id = R.drawable.ic_launcher_playstore),
-                                    contentDescription = "App Icon",
-                                    modifier = Modifier
-                                        .fillMaxSize() // Ensure the image fills the box
+
+                            buttonConfigurations.forEach { buttonConfig ->
+                                Spacer(modifier = Modifier.height(8.dp))
+                                LearnButton(
+                                    onClick = buttonConfig.onClick,
+                                    text = buttonConfig.text,
+                                    buttonWidth = buttonWidth
                                 )
                             }
-                            Spacer(modifier = Modifier.height(16.dp))
-                            HomeScreen(
-                                onLearnClicked = { navController.navigate("learn") },
-                                onGame1Clicked = { navController.navigate("game1") },
-                                onStatsClicked = { navController.navigate("stats") },
-                                onExtrasClicked = { navController.navigate("extras") },
-                                onHowToClicked = { navController.navigate("howto") },
-                                onExitClicked = { finish() }
-                            )
                         }
                     }
-                    composable("learn") {
-                        LearnSentences(navController, records, this@MainActivity) { text -> text.speak(tts) }
-                    }
-                    composable("game1") {
-                        LearnSentences(navController, records, this@MainActivity) { text -> text.speak(tts) }
-                    }
-                    composable("stats") {
-                        StatsScreen(navController)
-                    }
-                    composable("extras") {
-                        ExtrasScreen(navController)
-                    }
-                    composable("howto") {
-                        HowToScreen(navController)
-                    }
+                }
+                composable("learn") {
+                    LearnSentences(navController, records, this@MainActivity) { text -> text.speak(tts) }
+                }
+                composable("game1") {
+                    LearnSentences(navController, records, this@MainActivity) { text -> text.speak(tts) }
+                }
+                composable("stats") {
+                    StatsScreen(navController)
+                }
+                composable("extras") {
+                    ExtrasScreen(navController)
+                }
+                composable("howto") {
+                    HowToScreen(navController)
                 }
             }
         }
     }
+
     // Clean up TextToSpeech resources when activity is destroyed
     override fun onDestroy() {
         super.onDestroy()
@@ -198,100 +199,61 @@ class MainActivity : ComponentActivity() {
         tts.shutdown()
     }
 }
-
 @Composable
-fun HomeScreen(
-    onLearnClicked: () -> Unit,
-    onGame1Clicked: () -> Unit,
-    onStatsClicked: () -> Unit,
-    onExtrasClicked: () -> Unit,
-    onHowToClicked: () -> Unit,
-    onExitClicked: () -> Unit
+fun LearnButton(
+    onClick: () -> Unit,
+    text: String,
+    buttonWidth: Dp = 100.dp, // Default button width
+    buttonColor: Color = DeepSkyBlue,
+    textColor: Color = Color.Black
 ) {
-    BoxWithConstraints(
-        modifier = Modifier.padding(16.dp)
+    Button(
+        onClick = onClick,
+        modifier = Modifier.width(buttonWidth),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = buttonColor,
+            contentColor = textColor
+        )
     ) {
-        val buttonWidth = maxWidth / 2 // Half of the screen width
-
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Button(
-                onClick = onLearnClicked,
-                modifier = Modifier.width(buttonWidth),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = DeepSkyBlue,
-                    contentColor = Color.Black
-                )
-            ) {
-                Text(text = "Learn",
-                    fontSize = 18.sp)
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Button(
-                onClick = onGame1Clicked,
-                modifier = Modifier.width(buttonWidth),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = DeepSkyBlue,
-                    contentColor = Color.Black
-                )
-            ) {
-                Text("Game1",
-                    fontSize = 18.sp)
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Button(
-                onClick = onStatsClicked,
-                modifier = Modifier.width(buttonWidth),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = DeepSkyBlue,
-                    contentColor = Color.Black
-                )
-            ) {
-                Text("Stats",
-                    fontSize = 18.sp)
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Button(
-                onClick = onExtrasClicked,
-                modifier = Modifier.width(buttonWidth),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = DeepSkyBlue,
-                    contentColor = Color.Black
-                )
-            ) {
-                Text("Extras",
-                    fontSize = 18.sp)
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Button(
-                onClick = onHowToClicked,
-                modifier = Modifier.width(buttonWidth),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = DeepSkyBlue,
-                    contentColor = Color.Black
-                )
-            ) {
-                Text("How to",
-                    fontSize = 18.sp)
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Button(
-                onClick = onExitClicked,
-                modifier = Modifier.width(buttonWidth),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = DeepSkyBlue,
-                    contentColor = Color.Black
-                )
-            ) {
-                Text("Exit",
-                    fontSize = 18.sp)
-            }
-        }
+        Text(text = text, fontSize = 18.sp)
     }
 }
 
+data class ButtonConfig(val text: String, val onClick: () -> Unit)
+
+@Composable
+fun AppHeaderWithImage() {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        // App name header
+        Text(
+            text = stringResource(id = R.string.app_name),
+            fontSize = 30.sp,
+            fontWeight = FontWeight.Bold,
+            fontStyle = FontStyle.Italic,
+            color = DeepSkyBlue,
+            modifier = Modifier
+                .padding(20.dp)
+                .align(Alignment.CenterHorizontally)
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Image below the app name
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(180.dp)
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.netherlands),
+                contentDescription = "App Icon",
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+    }
+}
 @ExperimentalMaterial3Api
 @Composable
 fun LearnSentences(
