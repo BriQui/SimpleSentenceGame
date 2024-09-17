@@ -272,7 +272,7 @@ fun LearnSentences(
 
     // Ensure valid currentRecordIndex within records range
     val currentRecord = if (records.isNotEmpty()) records[currentRecordIndex] else null
-    val completeSentence = currentRecord!!.completeSentence
+    val completeSentence = currentRecord!!.completeSentence // should never throw exception
     val inCompleteSentence = currentRecord.gameSentence
     val translation = currentRecord.translation
 
@@ -320,39 +320,19 @@ fun LearnSentences(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Top
             ) {
+                // Learn option - display full sentence briefly, then incomplete sentence
                 Spacer(modifier = Modifier.height(16.dp))
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    OutlinedTextField(
-                        value = if (displayCompleteSentence) completeSentence else inCompleteSentence,
-                        onValueChange = {},
-                        readOnly = true,
-                        modifier = Modifier
-                            .padding(top = 25.dp)
-                            .fillMaxWidth(),
-                        textStyle = textStyle
-                    )
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(top = 16.dp)
-                            .size(20.dp)
-                            .background(color = DeepSkyBlue, shape = RoundedCornerShape(8.dp))
-                    ) {
-                        IconButton(
-                            onClick = { onRefresh() },
-                            modifier = Modifier.fillMaxSize()
-                        ) {
-                            Icon(
-                                Icons.Filled.Refresh,
-                                contentDescription = "Refresh",
-                                tint = Color.Black,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                    }
-                }
+
+                SentenceDisplay(
+                    displayCompleteSentence = displayCompleteSentence,
+                    completeSentence = completeSentence,
+                    inCompleteSentence = inCompleteSentence,
+                    onRefresh = { onRefresh() },
+                    textStyle = textStyle
+                )
 
                 Spacer(modifier = Modifier.height(8.dp))
+
                 OutlinedTextField(
                     value = userInput,
                     onValueChange = { userInput = it },
@@ -496,6 +476,46 @@ fun LearnSentences(
         }
     }
 }
+@Composable
+fun SentenceDisplay(
+    displayCompleteSentence: Boolean,
+    completeSentence: String,
+    inCompleteSentence: String,
+    onRefresh: () -> Unit,
+    textStyle: TextStyle
+) {
+    Box(modifier = Modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = if (displayCompleteSentence) completeSentence else inCompleteSentence,
+            onValueChange = {},
+            readOnly = true,
+            modifier = Modifier
+                .padding(top = 25.dp)
+                .fillMaxWidth(),
+            textStyle = textStyle
+        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 16.dp)
+                .size(20.dp)
+                .background(color = DeepSkyBlue, shape = RoundedCornerShape(8.dp))
+        ) {
+            IconButton(
+                onClick = { onRefresh() },
+                modifier = Modifier.fillMaxSize()
+            ) {
+                Icon(
+                    Icons.Filled.Refresh,
+                    contentDescription = "Refresh",
+                    tint = Color.Black,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        }
+    }
+}
+
 fun loadRecords(filePath: String): List<SentenceRecord> {
     // Log.d(DEBUG, "loadRecords: filePath=$filePath")
     val file = File(filePath)
