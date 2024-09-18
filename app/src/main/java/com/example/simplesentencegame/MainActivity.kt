@@ -101,6 +101,15 @@ const val DEBUG = "BQ_DEBUG"
 // const val BUTTON_HEIGHT = 35
 // val tonedDownButtonColor = Color.Blue.copy(alpha = 0.7f)
 const val LOTTIE_SIZE = 400
+const val LEARN = "LEARN"
+const val GAME1 = "GAME1"
+const val STATS = "STATS"
+const val HOWTO = "HOWTO"
+const val EXTRAS = "EXTRAS"
+const val EXIT = "EXIT"
+
+data class ButtonConfig(val text: String, val onClick: () -> Unit)
+
 @Serializable
 data class SentenceRecord(val id: Int, val completeSentence: String, val gameSentence: String, val translation: String)
 
@@ -108,7 +117,6 @@ data class SentenceRecord(val id: Int, val completeSentence: String, val gameSen
 class MainActivity : ComponentActivity() {
     private lateinit var tts: TextToSpeech
 
-    // Function to speak a sentence using TextToSpeech
     private fun String.speak(tts: TextToSpeech) {
         tts.speak(this, TextToSpeech.QUEUE_FLUSH, null, null)
     }
@@ -152,12 +160,12 @@ class MainActivity : ComponentActivity() {
                             Spacer(modifier = Modifier.height(16.dp))
 
                             val buttonConfigurations = listOf(
-                                ButtonConfig("Learn") { navController.navigate("learn") },
-                                ButtonConfig("Game1") { navController.navigate("game1") },
-                                ButtonConfig("Stats") { navController.navigate("stats") },
-                                ButtonConfig("Extras") { navController.navigate("extras") },
-                                ButtonConfig("How to") { navController.navigate("howto") },
-                                ButtonConfig("Exit") { this@MainActivity.finish() }
+                                ButtonConfig(LEARN) { navController.navigate(LEARN) },
+                                ButtonConfig(GAME1) { navController.navigate(GAME1) },
+                                ButtonConfig(STATS) { navController.navigate(STATS) },
+                                ButtonConfig(EXTRAS) { navController.navigate(EXTRAS) },
+                                ButtonConfig(HOWTO) { navController.navigate(HOWTO) },
+                                ButtonConfig(EXIT) { this@MainActivity.finish() }
                             )
 
                             buttonConfigurations.forEach { buttonConfig ->
@@ -171,19 +179,19 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
-                composable("learn") {
+                composable(LEARN) {
                     LearnSentences(navController, records, this@MainActivity) { text -> text.speak(tts) }
                 }
-                composable("game1") {
+                composable(GAME1) {
                     LearnSentences(navController, records, this@MainActivity) { text -> text.speak(tts) }
                 }
-                composable("stats") {
+                composable(STATS) {
                     StatsScreen(navController)
                 }
-                composable("extras") {
+                composable(EXTRAS) {
                     ExtrasScreen(navController)
                 }
-                composable("howto") {
+                composable(HOWTO) {
                     HowToScreen(navController)
                 }
             }
@@ -216,8 +224,6 @@ fun LearnButton(
         Text(text = text, fontSize = 18.sp)
     }
 }
-
-data class ButtonConfig(val text: String, val onClick: () -> Unit)
 
 @Composable
 fun AppHeaderWithImage() {
@@ -273,7 +279,8 @@ fun LearnSentences(
     // Ensure valid currentRecordIndex within records range
     val currentRecord = if (records.isNotEmpty()) records[currentRecordIndex] else null
     val completeSentence = currentRecord!!.completeSentence // should never throw exception
-    val testSentence = currentRecord.gameSentence
+    val gameSentence = currentRecord.gameSentence
+    val testSentence = gameSentence
     val translation = currentRecord.translation
 
     val timeFactorPerChar = TIME_FACTOR_PER_CHAR // how long to display sentence, i.e. delay.
@@ -320,7 +327,6 @@ fun LearnSentences(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Top
             ) {
-                // Learn option - display full sentence briefly, then incomplete sentence
                 Spacer(modifier = Modifier.height(16.dp))
 
                 SentenceDisplay(
