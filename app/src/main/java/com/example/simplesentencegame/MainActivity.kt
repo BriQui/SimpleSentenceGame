@@ -102,7 +102,9 @@ const val DEBUG = "BQ_DEBUG"
 // val tonedDownButtonColor = Color.Blue.copy(alpha = 0.7f)
 const val LOTTIE_SIZE = 400
 const val LEARN = "LEARN"
-const val GAME1 = "GAME1"
+const val PRACTICE_RECALL = "PRACTICE RECALL"
+const val PRACTICE_SOURCE = "PRACTICE DUTCH"
+const val PRACTICE_TARGET = "PRACTICE ENGLISH"
 const val STATS = "STATS"
 const val HOWTO = "HOWTO"
 const val EXTRAS = "EXTRAS"
@@ -148,20 +150,22 @@ class MainActivity : ComponentActivity() {
                     BoxWithConstraints(
                         modifier = Modifier.padding(16.dp)
                     ) {
-                        val buttonWidth = maxWidth / 2 // Half of the screen width
+                        val buttonWidth = maxWidth * 2 / 3 // Half of the screen width
 
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             // App name header and app image
-                            AppHeaderWithImage()
+                            HeaderWithImage(stringResource(id = R.string.app_name), true)
 
                             Spacer(modifier = Modifier.height(16.dp))
 
                             val buttonConfigurations = listOf(
                                 ButtonConfig(LEARN) { navController.navigate(LEARN) },
-                                ButtonConfig(GAME1) { navController.navigate(GAME1) },
+                                ButtonConfig(PRACTICE_RECALL) { navController.navigate(PRACTICE_RECALL) },
+                                ButtonConfig(PRACTICE_SOURCE) { navController.navigate(PRACTICE_SOURCE) },
+                                ButtonConfig(PRACTICE_TARGET) { navController.navigate(PRACTICE_TARGET) },
                                 ButtonConfig(STATS) { navController.navigate(STATS) },
                                 ButtonConfig(EXTRAS) { navController.navigate(EXTRAS) },
                                 ButtonConfig(HOWTO) { navController.navigate(HOWTO) },
@@ -169,7 +173,7 @@ class MainActivity : ComponentActivity() {
                             )
 
                             buttonConfigurations.forEach { buttonConfig ->
-                                Spacer(modifier = Modifier.height(8.dp))
+                                //Spacer(modifier = Modifier.height(6.dp))
                                 LearnButton(
                                     onClick = buttonConfig.onClick,
                                     text = buttonConfig.text,
@@ -180,10 +184,20 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 composable(LEARN) {
-                    LearnSentences(navController, records, this@MainActivity) { text -> text.speak(tts) }
+                    LearnSentences(LEARN,
+                        navController, records, this@MainActivity) { text -> text.speak(tts) }
                 }
-                composable(GAME1) {
-                    LearnSentences(navController, records, this@MainActivity) { text -> text.speak(tts) }
+                composable(PRACTICE_RECALL) {
+                    LearnSentences(PRACTICE_RECALL,
+                        navController, records, this@MainActivity) { text -> text.speak(tts) }
+                }
+                composable(PRACTICE_SOURCE) {
+                    LearnSentences(PRACTICE_SOURCE,
+                        navController, records, this@MainActivity) { text -> text.speak(tts) }
+                }
+                composable(PRACTICE_TARGET) {
+                    LearnSentences(PRACTICE_TARGET,
+                        navController, records, this@MainActivity) { text -> text.speak(tts) }
                 }
                 composable(STATS) {
                     StatsScreen(navController)
@@ -221,46 +235,47 @@ fun LearnButton(
             contentColor = textColor
         )
     ) {
-        Text(text = text, fontSize = 18.sp)
+        Text(text = text, fontSize = 16.sp)
     }
 }
 
 @Composable
-fun AppHeaderWithImage() {
+fun HeaderWithImage(headerText: String, showAppImage: Boolean) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.fillMaxWidth()
     ) {
         // App name header
         Text(
-            text = stringResource(id = R.string.app_name),
-            fontSize = 30.sp,
+            text = headerText,
+            fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
             fontStyle = FontStyle.Italic,
             color = DeepSkyBlue,
             modifier = Modifier
-                .padding(20.dp)
                 .align(Alignment.CenterHorizontally)
         )
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Image below the app name
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(180.dp)
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.netherlands),
-                contentDescription = "App Icon",
-                modifier = Modifier.fillMaxSize()
-            )
+        // Image below the header
+        if (showAppImage) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(180.dp)
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.netherlands),
+                    contentDescription = "App Icon",
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
         }
     }
 }
 @ExperimentalMaterial3Api
 @Composable
 fun LearnSentences(
+    learningOption: String,
     navController: NavController,
     records: List<SentenceRecord>,
     context: MainActivity,
@@ -280,8 +295,8 @@ fun LearnSentences(
     val currentRecord = if (records.isNotEmpty()) records[currentRecordIndex] else null
     val completeSentence = currentRecord!!.completeSentence // should never throw exception
     val gameSentence = currentRecord.gameSentence
-    val testSentence = gameSentence
     val translation = currentRecord.translation
+    var answerSentence: String
 
     val timeFactorPerChar = TIME_FACTOR_PER_CHAR // how long to display sentence, i.e. delay.
     val calculatedDelay = completeSentence.length.times(timeFactorPerChar)
@@ -294,13 +309,13 @@ fun LearnSentences(
 
     val focusRequester = remember { FocusRequester() }
 
-    var flashCompleteSentence by remember { mutableStateOf(true) }
+    var flashAnswerSentence by remember { mutableStateOf(true) }
     var refreshButton by remember { mutableIntStateOf(0) }
 
-    LaunchedEffect(testSentence, refreshButton) {
-        flashCompleteSentence = true
+    LaunchedEffect(gameSentence, refreshButton) {
+        flashAnswerSentence = true
         delay(calculatedDelay.toLong())
-        flashCompleteSentence = false
+        flashAnswerSentence = false
     }
 
     fun onRefresh() {
@@ -327,17 +342,52 @@ fun LearnSentences(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Top
             ) {
-                Spacer(modifier = Modifier.height(16.dp))
-
-                SentenceDisplay(
-                    flashCompleteSentence = flashCompleteSentence,
-                    completeSentence = completeSentence,
-                    testSentence = testSentence,
-                    onRefresh = { onRefresh() },
-                    textStyle = textStyle
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
+                when (learningOption) {
+                    LEARN -> {
+                        HeaderWithImage(headerText = LEARN, showAppImage = false)
+                        answerSentence = completeSentence
+                        SentenceDisplay(
+                            testSentence = gameSentence,
+                            answerSentence = answerSentence,
+                            flashAnswerSentence = flashAnswerSentence, // flash answer briefly
+                            onRefresh = { onRefresh() },
+                            textStyle = textStyle
+                        ) }
+                    PRACTICE_RECALL -> {
+                        HeaderWithImage(headerText = PRACTICE_RECALL, showAppImage = false)
+                        answerSentence = completeSentence
+                        SentenceDisplay(
+                            testSentence = gameSentence,
+                            answerSentence = answerSentence,
+                            flashAnswerSentence = false,
+                            onRefresh = { onRefresh() },
+                            textStyle = textStyle
+                        ) }
+                    PRACTICE_SOURCE -> {
+                        HeaderWithImage(headerText = PRACTICE_SOURCE, showAppImage = false)
+                        answerSentence = translation
+                        SentenceDisplay(
+                            testSentence = completeSentence,
+                            answerSentence = answerSentence,
+                            flashAnswerSentence = false,
+                            onRefresh = { onRefresh() },
+                            textStyle = textStyle
+                        ) }
+                    PRACTICE_TARGET -> {
+                        HeaderWithImage(headerText = PRACTICE_TARGET, showAppImage = false)
+                        answerSentence = completeSentence
+                        SentenceDisplay(
+                            testSentence = translation,
+                            answerSentence = answerSentence,
+                            flashAnswerSentence = false,
+                            onRefresh = { onRefresh() },
+                            textStyle = textStyle
+                        ) }
+                    else -> {
+                        Log.d(DEBUG,"bad learning option")
+                        throw Exception("bad learning option")
+                    }
+                }
 
                 OutlinedTextField(
                     value = userInput,
@@ -349,8 +399,11 @@ fun LearnSentences(
                         .onKeyEvent { event ->
                             when (event.key) {
                                 Key.Tab, Key.Enter -> {
-                                    if (userInput.trim().isNotEmpty()) {
-                                        if (userInput.trim() == completeSentence) {
+                                    if (userInput
+                                            .trim()
+                                            .isNotEmpty()
+                                    ) {
+                                        if (userInput.trim() == answerSentence) {
                                             showTickMark = true
                                             speak(completeSentence)
                                             coroutineScope.launch {
@@ -359,15 +412,21 @@ fun LearnSentences(
                                                 if (score >= MAX_SCORE) {
                                                     showLottieAnimation = true
                                                 }
-                                                currentRecordIndex = (currentRecordIndex + 1) % records.size
+                                                currentRecordIndex =
+                                                    (currentRecordIndex + 1) % records.size
                                                 userInput = ""
                                             }
                                         } else {
-                                            showToastWithBeep(context, "Try again!", isCorrect = false)
+                                            showToastWithBeep(
+                                                context,
+                                                "Try again!",
+                                                isCorrect = false
+                                            )
                                         }
                                     }
                                     true
                                 }
+
                                 else -> false
                             }
                         },
@@ -381,7 +440,7 @@ fun LearnSentences(
                 ) {
                     Button(
                         onClick = {
-                            if (userInput.trim() == completeSentence) {
+                            if (userInput.trim() == answerSentence) {
                                 showTickMark = true
                                 speak(completeSentence)
                                 coroutineScope.launch {
@@ -412,14 +471,18 @@ fun LearnSentences(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
-                OutlinedTextField(
-                    value = translation,
-                    onValueChange = {},
-                    readOnly = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    textStyle = textStyle
-                )
+                // show translation
+                if (learningOption == LEARN
+                    || learningOption == PRACTICE_RECALL) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    OutlinedTextField(
+                        value = translation,
+                        onValueChange = {},
+                        readOnly = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        textStyle = textStyle
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(16.dp))
                 val progress = score / MAX_SCORE.toFloat()
@@ -452,6 +515,10 @@ fun LearnSentences(
             }
 
             if (showLottieAnimation) {
+                LaunchedEffect(Unit) {
+                    delay(1500) // show animation briefly
+                    showLottieAnimation = false
+                }
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopCenter)
@@ -484,15 +551,15 @@ fun LearnSentences(
 }
 @Composable
 fun SentenceDisplay(
-    flashCompleteSentence: Boolean,
-    completeSentence: String,
     testSentence: String,
+    answerSentence: String,
+    flashAnswerSentence: Boolean,
     onRefresh: () -> Unit,
     textStyle: TextStyle
 ) {
     Box(modifier = Modifier.fillMaxWidth()) {
         OutlinedTextField(
-            value = if (flashCompleteSentence) completeSentence else testSentence,
+            value = if (flashAnswerSentence) answerSentence else testSentence,
             onValueChange = {},
             readOnly = true,
             modifier = Modifier
