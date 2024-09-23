@@ -103,8 +103,8 @@ const val DEBUG = "BQ_DEBUG"
 const val LOTTIE_SIZE = 400
 const val LEARN = "LEARN"
 const val PRACTICE_RECALL = "PRACTICE RECALL"
-const val PRACTICE_SOURCE = "PRACTICE DUTCH"
-const val PRACTICE_TARGET = "PRACTICE ENGLISH"
+const val PRACTICE_SOURCE = "DUTCH → ENGLISH"
+const val PRACTICE_TARGET = "ENGLISH → DUTCH"
 const val STATS = "STATS"
 const val HOWTO = "HOWTO"
 const val EXTRAS = "EXTRAS"
@@ -141,6 +141,12 @@ class MainActivity : ComponentActivity() {
         val filePath = "${this.filesDir.path}/$FILENAME"
         val records = loadRecords(filePath)
         if (records.isEmpty()) throw Exception("Bad data file!!!")
+
+        // FIRST STAB AT SHOWING USER HOW MANY WORDS THEY'VE LEARNED !!!!
+        // FIRST STAB AT SHOWING USER HOW MANY WORDS THEY'VE LEARNED !!!!
+        // FIRST STAB AT SHOWING USER HOW MANY WORDS THEY'VE LEARNED !!!!
+        val learnedWords = getSourceWords(records)
+        Log.d(DEBUG, "Learned words: $learnedWords")
 
         setContent {
             val navController = rememberNavController()
@@ -219,6 +225,7 @@ class MainActivity : ComponentActivity() {
         tts.shutdown()
     }
 }
+
 @Composable
 fun LearnButton(
     onClick: () -> Unit,
@@ -288,6 +295,7 @@ fun LearnSentences(
     var score by remember { mutableIntStateOf(0) }
     var showLottieAnimation by remember { mutableStateOf(false) }
     val lottieComposition by rememberLottieComposition(LottieCompositionSpec.Asset("well_done.json"))
+    var spoken by remember { mutableStateOf(false) }
 
     val coroutineScope = rememberCoroutineScope()
 
@@ -346,43 +354,63 @@ fun LearnSentences(
                     LEARN -> {
                         HeaderWithImage(headerText = LEARN, showAppImage = false)
                         answerSentence = completeSentence
+                        if (!spoken) {
+                            speak(completeSentence)
+                            spoken = true
+                        }
                         SentenceDisplay(
                             testSentence = gameSentence,
                             answerSentence = answerSentence,
                             flashAnswerSentence = flashAnswerSentence, // flash answer briefly
                             onRefresh = { onRefresh() },
                             textStyle = textStyle
-                        ) }
+                        )
+                    }
                     PRACTICE_RECALL -> {
                         HeaderWithImage(headerText = PRACTICE_RECALL, showAppImage = false)
                         answerSentence = completeSentence
+                        if (!spoken) {
+                            speak(completeSentence)
+                            spoken = true
+                        }
                         SentenceDisplay(
                             testSentence = gameSentence,
                             answerSentence = answerSentence,
                             flashAnswerSentence = false,
                             onRefresh = { onRefresh() },
                             textStyle = textStyle
-                        ) }
+                        )
+                    }
                     PRACTICE_SOURCE -> {
                         HeaderWithImage(headerText = PRACTICE_SOURCE, showAppImage = false)
                         answerSentence = translation
+                        if (!spoken) {
+                            speak(completeSentence)
+                            spoken = true
+                        }
                         SentenceDisplay(
                             testSentence = completeSentence,
                             answerSentence = answerSentence,
                             flashAnswerSentence = false,
                             onRefresh = { onRefresh() },
                             textStyle = textStyle
-                        ) }
+                        )
+                    }
                     PRACTICE_TARGET -> {
                         HeaderWithImage(headerText = PRACTICE_TARGET, showAppImage = false)
                         answerSentence = completeSentence
+                        if (!spoken) {
+                            speak(completeSentence)
+                            spoken = true
+                        }
                         SentenceDisplay(
                             testSentence = translation,
                             answerSentence = answerSentence,
                             flashAnswerSentence = false,
                             onRefresh = { onRefresh() },
                             textStyle = textStyle
-                        ) }
+                        )
+                    }
                     else -> {
                         Log.d(DEBUG,"bad learning option")
                         throw Exception("bad learning option")
@@ -415,6 +443,7 @@ fun LearnSentences(
                                                 currentRecordIndex =
                                                     (currentRecordIndex + 1) % records.size
                                                 userInput = ""
+                                                spoken = false
                                             }
                                         } else {
                                             showToastWithBeep(
@@ -451,6 +480,7 @@ fun LearnSentences(
                                     }
                                     currentRecordIndex = (currentRecordIndex + 1) % records.size
                                     userInput = ""
+                                    spoken = false
                                 }
                             } else {
                                 showToastWithBeep(context, "Try again!", isCorrect = false)
@@ -606,6 +636,12 @@ fun loadRecords(filePath: String): List<SentenceRecord> {
     } else {
         throw Exception("file does not exist")
     }
+}
+fun getSourceWords(records: List<SentenceRecord>): Set<String> {
+    return records
+        .flatMap { it.completeSentence.split(" ") }
+        .map { it.lowercase().replace(Regex("[^a-zA-Z]+$"), "") }
+        .toSet()
 }
 
 @ExperimentalMaterial3Api
