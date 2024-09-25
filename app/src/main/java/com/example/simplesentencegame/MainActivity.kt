@@ -97,6 +97,7 @@ val LightGreen = Color(0xFF90EE90)
 const val FILENAME = "sentenceDatabase.json"
 const val MAX_SCORE = 2 // # correct answers to gen animation
 const val TIME_FACTOR_PER_CHAR = 60
+const val WAIT_AFTER_SPEAK = 4000L
 const val DEBUG = "BQ_DEBUG"
 // const val BUTTON_HEIGHT = 35
 // val tonedDownButtonColor = Color.Blue.copy(alpha = 0.7f)
@@ -145,8 +146,10 @@ class MainActivity : ComponentActivity() {
         // FIRST STAB AT SHOWING USER HOW MANY WORDS THEY'VE LEARNED !!!!
         // FIRST STAB AT SHOWING USER HOW MANY WORDS THEY'VE LEARNED !!!!
         // FIRST STAB AT SHOWING USER HOW MANY WORDS THEY'VE LEARNED !!!!
+/*
         val learnedWords = getSourceWords(records)
         Log.d(DEBUG, "Learned words: $learnedWords")
+*/
 
         setContent {
             val navController = rememberNavController()
@@ -362,6 +365,7 @@ fun LearnSentences(
                             testSentence = gameSentence,
                             answerSentence = answerSentence,
                             flashAnswerSentence = flashAnswerSentence, // flash answer briefly
+                            showRefreshButton = true,
                             onRefresh = { onRefresh() },
                             textStyle = textStyle
                         )
@@ -377,6 +381,7 @@ fun LearnSentences(
                             testSentence = gameSentence,
                             answerSentence = answerSentence,
                             flashAnswerSentence = false,
+                            showRefreshButton = false,
                             onRefresh = { onRefresh() },
                             textStyle = textStyle
                         )
@@ -393,6 +398,7 @@ fun LearnSentences(
                             answerSentence = answerSentence,
                             flashAnswerSentence = false,
                             onRefresh = { onRefresh() },
+                            showRefreshButton = false,
                             textStyle = textStyle
                         )
                     }
@@ -407,6 +413,7 @@ fun LearnSentences(
                             testSentence = translation,
                             answerSentence = answerSentence,
                             flashAnswerSentence = false,
+                            showRefreshButton = false,
                             onRefresh = { onRefresh() },
                             textStyle = textStyle
                         )
@@ -435,7 +442,7 @@ fun LearnSentences(
                                             showTickMark = true
                                             speak(completeSentence)
                                             coroutineScope.launch {
-                                                delay(2500)
+                                                delay(WAIT_AFTER_SPEAK)
                                                 score += 1
                                                 if (score >= MAX_SCORE) {
                                                     showLottieAnimation = true
@@ -444,6 +451,7 @@ fun LearnSentences(
                                                     (currentRecordIndex + 1) % records.size
                                                 userInput = ""
                                                 spoken = false
+                                                showTickMark = false
                                             }
                                         } else {
                                             showToastWithBeep(
@@ -473,7 +481,7 @@ fun LearnSentences(
                                 showTickMark = true
                                 speak(completeSentence)
                                 coroutineScope.launch {
-                                    delay(2500)
+                                    delay(WAIT_AFTER_SPEAK)
                                     score += 1
                                     if (score >= MAX_SCORE) {
                                         showLottieAnimation = true
@@ -481,6 +489,7 @@ fun LearnSentences(
                                     currentRecordIndex = (currentRecordIndex + 1) % records.size
                                     userInput = ""
                                     spoken = false
+                                    showTickMark = false
                                 }
                             } else {
                                 showToastWithBeep(context, "Try again!", isCorrect = false)
@@ -584,6 +593,7 @@ fun SentenceDisplay(
     testSentence: String,
     answerSentence: String,
     flashAnswerSentence: Boolean,
+    showRefreshButton: Boolean,
     onRefresh: () -> Unit,
     textStyle: TextStyle
 ) {
@@ -597,23 +607,25 @@ fun SentenceDisplay(
                 .fillMaxWidth(),
             textStyle = textStyle
         )
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 16.dp)
-                .size(20.dp)
-                .background(color = DeepSkyBlue, shape = RoundedCornerShape(8.dp))
-        ) {
-            IconButton(
-                onClick = { onRefresh() },
-                modifier = Modifier.fillMaxSize()
+        if (showRefreshButton) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 16.dp)
+                    .size(20.dp)
+                    .background(color = DeepSkyBlue, shape = RoundedCornerShape(8.dp))
             ) {
-                Icon(
-                    Icons.Filled.Refresh,
-                    contentDescription = "Refresh",
-                    tint = Color.Black,
-                    modifier = Modifier.size(24.dp)
-                )
+                IconButton(
+                    onClick = { onRefresh() },
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    Icon(
+                        Icons.Filled.Refresh,
+                        contentDescription = "Refresh",
+                        tint = Color.Black,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             }
         }
     }
