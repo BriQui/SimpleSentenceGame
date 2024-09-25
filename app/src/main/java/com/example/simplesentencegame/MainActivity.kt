@@ -430,46 +430,11 @@ fun LearnSentences(
                     label = { Text("Enter full sentence here…") },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .focusRequester(focusRequester)
-                        .onKeyEvent { event ->
-                            when (event.key) {
-                                Key.Tab, Key.Enter -> {
-                                    if (userInput
-                                            .trim()
-                                            .isNotEmpty()
-                                    ) {
-                                        if (userInput.trim() == answerSentence) {
-                                            showTickMark = true
-                                            speak(completeSentence)
-                                            coroutineScope.launch {
-                                                delay(WAIT_AFTER_SPEAK)
-                                                score += 1
-                                                if (score >= MAX_SCORE) {
-                                                    showLottieAnimation = true
-                                                }
-                                                currentRecordIndex =
-                                                    (currentRecordIndex + 1) % records.size
-                                                userInput = ""
-                                                spoken = false
-                                                showTickMark = false
-                                            }
-                                        } else {
-                                            showToastWithBeep(
-                                                context,
-                                                "Try again!",
-                                                isCorrect = false
-                                            )
-                                        }
-                                    }
-                                    true
-                                }
-
-                                else -> false
-                            }
-                        },
+                        .focusRequester(focusRequester),
                     textStyle = textStyle
                 )
 
+                // User input
                 Spacer(modifier = Modifier.height(2.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
