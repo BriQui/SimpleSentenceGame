@@ -239,48 +239,6 @@ fun LearnButton(
     }
 }
 
-@Composable
-fun HeaderWithImage(headerText: String, showAppImage: Boolean) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        // App name header
-        Text(
-            text = headerText,
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
-            fontStyle = FontStyle.Italic,
-            color = DeepSkyBlue,
-            modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-        )
-        Text(
-            text = "Goal → 1,000 words",
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
-            fontStyle = FontStyle.Italic,
-            color = Color.Green,
-            modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-        )
-        // Image below the header
-        if (showAppImage) {
-            Spacer(modifier = Modifier.height(16.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(180.dp)
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.netherlands),
-                    contentDescription = "App Icon",
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-        }
-    }
-}
 @ExperimentalMaterial3Api
 @Composable
 fun LearnSentences(
@@ -357,7 +315,7 @@ fun LearnSentences(
                 // display the appropriate learning option
                 when (learningOption) {
                     LEARN -> {
-                        HeaderWithImage(headerText = LEARN, showAppImage = false)
+                        HeaderWithImage(headerText = LEARN, showSecondaryInfo = false)
                         answerSentence = completeSentence
                         if (!spoken) {
                             speak(completeSentence)
@@ -373,7 +331,7 @@ fun LearnSentences(
                         )
                     }
                     PRACTICE_RECALL -> {
-                        HeaderWithImage(headerText = PRACTICE_RECALL, showAppImage = false)
+                        HeaderWithImage(headerText = PRACTICE_RECALL, showSecondaryInfo = false)
                         answerSentence = completeSentence
                         if (!spoken) {
                             speak(completeSentence)
@@ -389,7 +347,7 @@ fun LearnSentences(
                         )
                     }
                     PRACTICE_SOURCE -> {
-                        HeaderWithImage(headerText = PRACTICE_SOURCE, showAppImage = false)
+                        HeaderWithImage(headerText = PRACTICE_SOURCE, showSecondaryInfo = false)
                         answerSentence = translation
                         if (!spoken) {
                             speak(completeSentence)
@@ -405,7 +363,7 @@ fun LearnSentences(
                         )
                     }
                     PRACTICE_TARGET -> {
-                        HeaderWithImage(headerText = PRACTICE_TARGET, showAppImage = false)
+                        HeaderWithImage(headerText = PRACTICE_TARGET, showSecondaryInfo = false)
                         answerSentence = completeSentence
                         if (!spoken) {
                             speak(completeSentence)
@@ -618,6 +576,48 @@ fun SentenceDisplay(
                         modifier = Modifier.size(24.dp)
                     )
                 }
+            }
+        }
+    }
+}
+@Composable
+fun HeaderWithImage(headerText: String, showSecondaryInfo: Boolean) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        // App name header
+        Text(
+            text = headerText,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold,
+            fontStyle = FontStyle.Italic,
+            color = DeepSkyBlue,
+            modifier = Modifier
+                .align(Alignment.CenterHorizontally)
+        )
+        // Image below the header
+        if (showSecondaryInfo) {
+            Text(
+                text = "Goal → 1,000 words",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                fontStyle = FontStyle.Italic,
+                color = Color.Green,
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(180.dp)
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.netherlands),
+                    contentDescription = "App Icon",
+                    modifier = Modifier.fillMaxSize()
+                )
             }
         }
     }
