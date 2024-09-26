@@ -60,9 +60,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -95,9 +92,8 @@ val DeepSkyBlue = Color(0xFF00BFFF)
 val LightGreen = Color(0xFF90EE90)
 
 const val FILENAME = "sentenceDatabase.json"
-const val MAX_SCORE = 2 // # correct answers to gen animation
+const val MAX_SCORE = 10 // # correct answers to gen animation
 const val TIME_FACTOR_PER_CHAR = 60
-const val WAIT_AFTER_SPEAK = 4000L
 const val DEBUG = "BQ_DEBUG"
 // const val BUTTON_HEIGHT = 35
 // val tonedDownButtonColor = Color.Blue.copy(alpha = 0.7f)
@@ -139,18 +135,12 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        // get sentences from file
         val filePath = "${this.filesDir.path}/$FILENAME"
         val records = loadRecords(filePath)
         if (records.isEmpty()) throw Exception("Bad data file!!!")
 
-        // FIRST STAB AT SHOWING USER HOW MANY WORDS THEY'VE LEARNED !!!!
-        // FIRST STAB AT SHOWING USER HOW MANY WORDS THEY'VE LEARNED !!!!
-        // FIRST STAB AT SHOWING USER HOW MANY WORDS THEY'VE LEARNED !!!!
-/*
-        val learnedWords = getSourceWords(records)
-        Log.d(DEBUG, "Learned words: $learnedWords")
-*/
-
+        // main menu
         setContent {
             val navController = rememberNavController()
 
@@ -265,6 +255,15 @@ fun HeaderWithImage(headerText: String, showAppImage: Boolean) {
             modifier = Modifier
                 .align(Alignment.CenterHorizontally)
         )
+        Text(
+            text = "Goal → 1,000 words",
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            fontStyle = FontStyle.Italic,
+            color = Color.Green,
+            modifier = Modifier
+                .align(Alignment.CenterHorizontally)
+        )
         // Image below the header
         if (showAppImage) {
             Spacer(modifier = Modifier.height(16.dp))
@@ -299,6 +298,8 @@ fun LearnSentences(
     var showLottieAnimation by remember { mutableStateOf(false) }
     val lottieComposition by rememberLottieComposition(LottieCompositionSpec.Asset("well_done.json"))
     var spoken by remember { mutableStateOf(false) }
+    var flashAnswerSentence by remember { mutableStateOf(true) }
+    var refreshButton by remember { mutableIntStateOf(0) }
 
     var showNextButton by remember { mutableStateOf(false) }
 
@@ -322,15 +323,13 @@ fun LearnSentences(
 
     val focusRequester = remember { FocusRequester() }
 
-    var flashAnswerSentence by remember { mutableStateOf(true) }
-    var refreshButton by remember { mutableIntStateOf(0) }
-
     LaunchedEffect(gameSentence, refreshButton) {
         flashAnswerSentence = true
         delay(calculatedDelay.toLong())
         flashAnswerSentence = false
     }
 
+    // cause recompose
     fun onRefresh() {
         refreshButton += 1
     }
@@ -355,6 +354,7 @@ fun LearnSentences(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Top
             ) {
+                // display the appropriate learning option
                 when (learningOption) {
                     LEARN -> {
                         HeaderWithImage(headerText = LEARN, showAppImage = false)
@@ -426,6 +426,7 @@ fun LearnSentences(
                     }
                 }
 
+                // user input
                 OutlinedTextField(
                     value = userInput,
                     onValueChange = { userInput = it },
@@ -436,7 +437,7 @@ fun LearnSentences(
                     textStyle = textStyle
                 )
 
-                // User input
+                // check user input, if good→reward + Next sentence button else beep
                 Spacer(modifier = Modifier.height(2.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -472,7 +473,6 @@ fun LearnSentences(
                                     showTickMark = true
                                     speak(completeSentence)
                                     coroutineScope.launch {
-                                        // delay(WAIT_AFTER_SPEAK)
                                         score += 1
                                         if (score >= MAX_SCORE) {
                                             showLottieAnimation = true
@@ -541,6 +541,7 @@ fun LearnSentences(
                 }
             }
 
+            // for N correct answers, reward with animation
             if (showLottieAnimation) {
                 LaunchedEffect(Unit) {
                     delay(1500) // show animation briefly
@@ -585,8 +586,10 @@ fun SentenceDisplay(
     onRefresh: () -> Unit,
     textStyle: TextStyle
 ) {
+    // show test sentence
     Box(modifier = Modifier.fillMaxWidth()) {
         OutlinedTextField(
+            // Learn option only, briefly show answer sentence
             value = if (flashAnswerSentence) answerSentence else testSentence,
             onValueChange = {},
             readOnly = true,
@@ -595,6 +598,7 @@ fun SentenceDisplay(
                 .fillMaxWidth(),
             textStyle = textStyle
         )
+        // only for Learn option to briefly redisplay the complete sentence
         if (showRefreshButton) {
             Box(
                 modifier = Modifier
@@ -619,6 +623,7 @@ fun SentenceDisplay(
     }
 }
 
+// simple version of load sentences
 fun loadRecords(filePath: String): List<SentenceRecord> {
     // Log.d(DEBUG, "loadRecords: filePath=$filePath")
     val file = File(filePath)
@@ -637,12 +642,6 @@ fun loadRecords(filePath: String): List<SentenceRecord> {
         throw Exception("file does not exist")
     }
 }
-fun getSourceWords(records: List<SentenceRecord>): Set<String> {
-    return records
-        .flatMap { it.completeSentence.split(" ") }
-        .map { it.lowercase().replace(Regex("[^a-zA-Z]+$"), "") }
-        .toSet()
-}
 
 @ExperimentalMaterial3Api
 fun showToastWithBeep(context: MainActivity, message: String, isCorrect: Boolean) {
@@ -655,15 +654,17 @@ fun showToastWithBeep(context: MainActivity, message: String, isCorrect: Boolean
     val toneGen = ToneGenerator(AudioManager.STREAM_ALARM, 100)
 
     if (isCorrect) {
-        // Play a pleasant tone and show tick mark
+        // Play a pleasant tone
         toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, 200)
     } else {
+        // Play an unpleasant tone
         toneGen.startTone(ToneGenerator.TONE_PROP_NACK, 200)
     }
 
     val handler = Handler(Looper.getMainLooper())
     handler.postDelayed({ toneGen.release() }, 1000)
 }
+
 @Composable
 fun StatsScreen(navController: NavController) {
     Column(modifier = Modifier.padding(16.dp)) {
