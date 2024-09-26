@@ -300,6 +300,8 @@ fun LearnSentences(
     val lottieComposition by rememberLottieComposition(LottieCompositionSpec.Asset("well_done.json"))
     var spoken by remember { mutableStateOf(false) }
 
+    var showNextButton by remember { mutableStateOf(false) }
+
     val coroutineScope = rememberCoroutineScope()
 
     // Ensure valid currentRecordIndex within records range
@@ -440,44 +442,65 @@ fun LearnSentences(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
                 ) {
-                    Button(
-                        onClick = {
-                            if (userInput.trim() == answerSentence) {
-                                showTickMark = true
-                                speak(completeSentence)
-                                coroutineScope.launch {
-                                    delay(WAIT_AFTER_SPEAK)
-                                    score += 1
-                                    if (score >= MAX_SCORE) {
-                                        showLottieAnimation = true
+                    if (showNextButton) {
+                        Button(
+                            onClick = {
+                                // Move to the next sentence
+                                currentRecordIndex = (currentRecordIndex + 1) % records.size
+                                userInput = ""
+                                spoken = false
+                                showTickMark = false
+                                showNextButton = false // Hide "Next sentence" button
+                            },
+                            modifier = Modifier.height(28.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color.Green,
+                                contentColor = Color.Black
+                            ),
+                            shape = RoundedCornerShape(4.dp),
+                            contentPadding = PaddingValues(4.dp)
+                        ) {
+                            Text(
+                                text = "Next sentence",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    } else {
+                        Button(
+                            onClick = {
+                                if (userInput.trim() == answerSentence) {
+                                    showTickMark = true
+                                    speak(completeSentence)
+                                    coroutineScope.launch {
+                                        // delay(WAIT_AFTER_SPEAK)
+                                        score += 1
+                                        if (score >= MAX_SCORE) {
+                                            showLottieAnimation = true
+                                        }
+                                        showNextButton = true // Show "Next sentence" button
                                     }
-                                    currentRecordIndex = (currentRecordIndex + 1) % records.size
-                                    userInput = ""
-                                    spoken = false
-                                    showTickMark = false
+                                } else {
+                                    showToastWithBeep(context, "Try again!", isCorrect = false)
                                 }
-                            } else {
-                                showToastWithBeep(context, "Try again!", isCorrect = false)
-                            }
-                        },
-                        modifier = Modifier.height(28.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = DeepSkyBlue,
-                            contentColor = Color.Black
-                        ),
-                        shape = RoundedCornerShape(4.dp),
-                        contentPadding = PaddingValues(4.dp)
-                    ) {
-                        Text(
-                            text = "Submit",
-                            style = MaterialTheme.typography.bodySmall
-                        )
+                            },
+                            modifier = Modifier.height(28.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = DeepSkyBlue,
+                                contentColor = Color.Black
+                            ),
+                            shape = RoundedCornerShape(4.dp),
+                            contentPadding = PaddingValues(4.dp)
+                        ) {
+                            Text(
+                                text = "Submit",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
                     }
                 }
 
                 // show translation
-                if (learningOption == LEARN
-                    || learningOption == PRACTICE_RECALL) {
+                if (learningOption == LEARN) {
                     Spacer(modifier = Modifier.height(16.dp))
                     OutlinedTextField(
                         value = translation,
