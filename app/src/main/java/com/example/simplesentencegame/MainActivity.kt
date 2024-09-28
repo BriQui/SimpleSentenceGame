@@ -248,7 +248,7 @@ fun LearnSentences(
     val completeSentence = currentRecord!!.sourceSentence // should never throw exception
     val gameSentence = currentRecord.gameSentence
     val translation = currentRecord.translation
-    var answerSentence: String = ""
+    var answerSentence = ""
 
     val timeFactorPerChar = TIME_FACTOR_PER_CHAR // how long to display sentence, i.e. delay.
     val calculatedDelay = completeSentence.length.times(timeFactorPerChar)
