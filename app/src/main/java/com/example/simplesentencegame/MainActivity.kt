@@ -12,7 +12,6 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -98,6 +97,7 @@ const val DEBUG = "BQ_DEBUG"
 // const val BUTTON_HEIGHT = 35
 // val tonedDownButtonColor = Color.Blue.copy(alpha = 0.7f)
 const val LOTTIE_SIZE = 400
+const val HOME = "HOME"
 const val LEARN = "LEARN"
 const val PRACTICE_RECALL = "PRACTICE RECALL"
 const val PRACTICE_SOURCE = "DUTCH → ENGLISH"
@@ -110,7 +110,7 @@ const val EXIT = "EXIT"
 data class ButtonConfig(val text: String, val onClick: () -> Unit)
 
 @Serializable
-data class SentenceRecord(val id: Int, val completeSentence: String, val gameSentence: String, val translation: String)
+data class SentenceRecord(val id: Int, val sourceSentence: String, val gameSentence: String, val translation: String)
 
 @ExperimentalMaterial3Api
 class MainActivity : ComponentActivity() {
@@ -144,8 +144,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             val navController = rememberNavController()
 
-            NavHost(navController = navController, startDestination = "home") {
-                composable("home") {
+            NavHost(navController = navController, startDestination = HOME) {
+                composable(HOME) {
                     BoxWithConstraints(
                         modifier = Modifier.padding(16.dp)
                     ) {
@@ -219,26 +219,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@Composable
-fun LearnButton(
-    onClick: () -> Unit,
-    text: String,
-    buttonWidth: Dp = 100.dp, // Default button width
-    buttonColor: Color = DeepSkyBlue,
-    textColor: Color = Color.Black
-) {
-    Button(
-        onClick = onClick,
-        modifier = Modifier.width(buttonWidth),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = buttonColor,
-            contentColor = textColor
-        )
-    ) {
-        Text(text = text, fontSize = 16.sp)
-    }
-}
-
 @ExperimentalMaterial3Api
 @Composable
 fun LearnSentences(
@@ -265,13 +245,13 @@ fun LearnSentences(
 
     // Ensure valid currentRecordIndex within records range
     val currentRecord = if (records.isNotEmpty()) records[currentRecordIndex] else null
-    val completeSentence = currentRecord!!.completeSentence // should never throw exception
+    val sourceSentence = currentRecord!!.sourceSentence // should never throw exception
     val gameSentence = currentRecord.gameSentence
     val translation = currentRecord.translation
-    var answerSentence: String
+    var answerSentence: String = ""
 
     val timeFactorPerChar = TIME_FACTOR_PER_CHAR // how long to display sentence, i.e. delay.
-    val calculatedDelay = completeSentence.length.times(timeFactorPerChar)
+    val calculatedDelay = sourceSentence.length.times(timeFactorPerChar)
 
     val textStyle = TextStyle(
         fontSize = 16.sp,
@@ -290,6 +270,7 @@ fun LearnSentences(
     // cause recompose
     fun onRefresh() {
         refreshButton += 1
+        speak(answerSentence)
     }
 
     LaunchedEffect(Unit) {
@@ -316,15 +297,15 @@ fun LearnSentences(
                 when (learningOption) {
                     LEARN -> {
                         HeaderWithImage(headerText = LEARN, showSecondaryInfo = false)
-                        answerSentence = completeSentence
+                        answerSentence = sourceSentence
                         if (!spoken) {
-                            speak(completeSentence)
+                            speak(sourceSentence)
                             spoken = true
                         }
                         SentenceDisplay(
                             testSentence = gameSentence,
                             answerSentence = answerSentence,
-                            flashAnswerSentence = flashAnswerSentence, // flash answer briefly
+                            flashAnswerSentence = flashAnswerSentence,
                             showRefreshButton = true,
                             onRefresh = { onRefresh() },
                             textStyle = textStyle
@@ -332,16 +313,16 @@ fun LearnSentences(
                     }
                     PRACTICE_RECALL -> {
                         HeaderWithImage(headerText = PRACTICE_RECALL, showSecondaryInfo = false)
-                        answerSentence = completeSentence
+                        answerSentence = sourceSentence
                         if (!spoken) {
-                            speak(completeSentence)
+                            speak(sourceSentence)
                             spoken = true
                         }
                         SentenceDisplay(
                             testSentence = gameSentence,
                             answerSentence = answerSentence,
                             flashAnswerSentence = false,
-                            showRefreshButton = false,
+                            showRefreshButton = true,
                             onRefresh = { onRefresh() },
                             textStyle = textStyle
                         )
@@ -350,11 +331,11 @@ fun LearnSentences(
                         HeaderWithImage(headerText = PRACTICE_SOURCE, showSecondaryInfo = false)
                         answerSentence = translation
                         if (!spoken) {
-                            speak(completeSentence)
+                            speak(sourceSentence)
                             spoken = true
                         }
                         SentenceDisplay(
-                            testSentence = completeSentence,
+                            testSentence = sourceSentence,
                             answerSentence = answerSentence,
                             flashAnswerSentence = false,
                             onRefresh = { onRefresh() },
@@ -364,9 +345,9 @@ fun LearnSentences(
                     }
                     PRACTICE_TARGET -> {
                         HeaderWithImage(headerText = PRACTICE_TARGET, showSecondaryInfo = false)
-                        answerSentence = completeSentence
+                        answerSentence = sourceSentence
                         if (!spoken) {
-                            speak(completeSentence)
+                            speak(sourceSentence)
                             spoken = true
                         }
                         SentenceDisplay(
@@ -429,7 +410,7 @@ fun LearnSentences(
                             onClick = {
                                 if (userInput.trim() == answerSentence) {
                                     showTickMark = true
-                                    speak(completeSentence)
+                                    speak(sourceSentence)
                                     coroutineScope.launch {
                                         score += 1
                                         if (score >= MAX_SCORE) {
@@ -535,6 +516,27 @@ fun LearnSentences(
         }
     }
 }
+
+@Composable
+fun LearnButton(
+    onClick: () -> Unit,
+    text: String,
+    buttonWidth: Dp = 100.dp, // Default button width
+    buttonColor: Color = DeepSkyBlue,
+    textColor: Color = Color.Black
+) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier.width(buttonWidth),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = buttonColor,
+            contentColor = textColor
+        )
+    ) {
+        Text(text = text, fontSize = 16.sp)
+    }
+}
+
 @Composable
 fun SentenceDisplay(
     testSentence: String,
@@ -554,32 +556,23 @@ fun SentenceDisplay(
             modifier = Modifier
                 .padding(top = 25.dp)
                 .fillMaxWidth(),
-            textStyle = textStyle
-        )
-        // only for Learn option to briefly redisplay the complete sentence
-        if (showRefreshButton) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = 16.dp)
-                    .size(20.dp)
-                    .background(color = DeepSkyBlue, shape = RoundedCornerShape(8.dp))
-            ) {
-                IconButton(
-                    onClick = { onRefresh() },
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    Icon(
-                        Icons.Filled.Refresh,
-                        contentDescription = "Refresh",
-                        tint = Color.Black,
-                        modifier = Modifier.size(24.dp)
-                    )
+            textStyle = textStyle,
+            trailingIcon = {
+                // Show refresh icon only if the refresh button is enabled
+                if (showRefreshButton) {
+                    IconButton(onClick = { onRefresh() }) {
+                        Icon(
+                            imageVector = Icons.Filled.Refresh,
+                            contentDescription = "Refresh",
+                            tint = Color.Black
+                        )
+                    }
                 }
             }
-        }
+        )
     }
 }
+
 @Composable
 fun HeaderWithImage(headerText: String, showSecondaryInfo: Boolean) {
     Column(
@@ -728,12 +721,13 @@ fun HowToScreen(navController: NavController) {
         // Button aligned at the bottom of the screen
         Button(
             onClick = { navController.popBackStack() },
-            modifier = Modifier.align(Alignment.CenterHorizontally) // Align Button horizontally in Column
+            modifier = Modifier.align(Alignment.CenterHorizontally)
         ) {
             Text("Back to Home")
         }
     }
 }
+
 @ExperimentalMaterial3Api
 @Composable
 fun CustomTopAppBar(
