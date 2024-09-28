@@ -102,8 +102,8 @@ const val LOTTIE_SIZE = 400
 const val HOME = "HOME"
 const val LEARN = "LEARN"
 const val PRACTICE_RECALL = "PRACTICE RECALL"
-const val PRACTICE_SOURCE = "DUTCH → ENGLISH"
-const val PRACTICE_TARGET = "ENGLISH → DUTCH"
+const val PRACTICE_SOURCE = "DUTCH→ENGLISH"
+const val PRACTICE_TARGET = "ENGLISH→DUTCH"
 const val STATS = "STATS"
 const val HOWTO = "HOWTO"
 const val EXTRAS = "EXTRAS"
@@ -457,7 +457,7 @@ fun LearnSentences(
 
                 Spacer(modifier = Modifier.height(16.dp))
                 val progress = score / MAX_SCORE.toFloat()
-                Text(text = "Progress: ${(progress * 100).toInt()}%")
+                // Text(text = "${(progress * 100).toInt()}%")
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
@@ -471,6 +471,10 @@ fun LearnSentences(
                             .height(25.dp),
                         color = LightGreen,
                     )
+                    Text(
+                        text = if (score > 0) "$score correct" else "",
+                        color = Color.Black,
+                        modifier = Modifier.align(Alignment.Center))
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -505,7 +509,7 @@ fun LearnSentences(
                             .align(Alignment.TopCenter)
                     )
                     Text(
-                        text = "You got $MAX_SCORE correct answers… very cool!",
+                        text = "You got $MAX_SCORE correct… very cool!",
                         style = TextStyle(
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
@@ -748,10 +752,10 @@ fun CustomTopAppBar(
     val nextIndex = (currentIndex + 1) % NUMBER_OF_LEARNING_OPTIONS
 
     TopAppBar(
-        title = { }, // Leave this empty to remove the title
+        title = { }, // Leave empty so no title
         colors = TopAppBarDefaults.topAppBarColors(containerColor = DeepSkyBlue),
         actions = {
-            // Previous Arrow with Text
+            // Back arrow - go to previous learning option
             IconButton(onClick = { navController.navigate(LEARNING_CYCLE[previousIndex]) }) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
             }
@@ -765,7 +769,7 @@ fun CustomTopAppBar(
                 Icon(Icons.Filled.Home, contentDescription = "Home")
             }
             Spacer(modifier = Modifier.weight(1f))
-            // Next Arrow with Text
+            // Next arrow - go to following learning option
             Text(
                 text = LEARNING_CYCLE[nextIndex],
                 modifier = Modifier.clickable { navController.navigate(LEARNING_CYCLE[nextIndex]) }
