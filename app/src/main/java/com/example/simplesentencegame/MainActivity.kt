@@ -245,13 +245,13 @@ fun LearnSentences(
 
     // Ensure valid currentRecordIndex within records range
     val currentRecord = if (records.isNotEmpty()) records[currentRecordIndex] else null
-    val completeSentence = currentRecord!!.sourceSentence // should never throw exception
+    val sourceSentence = currentRecord!!.sourceSentence // should never throw exception
     val gameSentence = currentRecord.gameSentence
     val translation = currentRecord.translation
     var answerSentence = ""
 
     val timeFactorPerChar = TIME_FACTOR_PER_CHAR // how long to display sentence, i.e. delay.
-    val calculatedDelay = completeSentence.length.times(timeFactorPerChar)
+    val calculatedDelay = sourceSentence.length.times(timeFactorPerChar)
 
     val textStyle = TextStyle(
         fontSize = 16.sp,
@@ -297,9 +297,9 @@ fun LearnSentences(
                 when (learningOption) {
                     LEARN -> {
                         HeaderWithImage(headerText = LEARN, showSecondaryInfo = false)
-                        answerSentence = completeSentence
+                        answerSentence = sourceSentence
                         if (!spoken) {
-                            speak(completeSentence)
+                            speak(sourceSentence)
                             spoken = true
                         }
                         SentenceDisplay(
@@ -313,9 +313,9 @@ fun LearnSentences(
                     }
                     PRACTICE_RECALL -> {
                         HeaderWithImage(headerText = PRACTICE_RECALL, showSecondaryInfo = false)
-                        answerSentence = completeSentence
+                        answerSentence = sourceSentence
                         if (!spoken) {
-                            speak(completeSentence)
+                            speak(sourceSentence)
                             spoken = true
                         }
                         SentenceDisplay(
@@ -331,11 +331,11 @@ fun LearnSentences(
                         HeaderWithImage(headerText = PRACTICE_SOURCE, showSecondaryInfo = false)
                         answerSentence = translation
                         if (!spoken) {
-                            speak(completeSentence)
+                            speak(sourceSentence)
                             spoken = true
                         }
                         SentenceDisplay(
-                            testSentence = completeSentence,
+                            testSentence = sourceSentence,
                             answerSentence = answerSentence,
                             flashAnswerSentence = false,
                             onRefresh = { onRefresh() },
@@ -345,9 +345,9 @@ fun LearnSentences(
                     }
                     PRACTICE_TARGET -> {
                         HeaderWithImage(headerText = PRACTICE_TARGET, showSecondaryInfo = false)
-                        answerSentence = completeSentence
+                        answerSentence = sourceSentence
                         if (!spoken) {
-                            speak(completeSentence)
+                            speak(sourceSentence)
                             spoken = true
                         }
                         SentenceDisplay(
@@ -410,7 +410,7 @@ fun LearnSentences(
                             onClick = {
                                 if (userInput.trim() == answerSentence) {
                                     showTickMark = true
-                                    speak(completeSentence)
+                                    speak(sourceSentence)
                                     coroutineScope.launch {
                                         score += 1
                                         if (score >= MAX_SCORE) {
@@ -618,7 +618,7 @@ fun HeaderWithImage(headerText: String, showSecondaryInfo: Boolean) {
 
 // simple version of load sentences
 fun loadRecords(filePath: String): List<SentenceRecord> {
-    // Log.d(DEBUG, "loadRecords: filePath=$filePath")
+    Log.d(DEBUG, "loadRecords: filePath=$filePath")
     val file = File(filePath)
     return if (file.exists()) {
         try {
@@ -626,13 +626,15 @@ fun loadRecords(filePath: String): List<SentenceRecord> {
             try {
                 Json.decodeFromString(jsonData)
             } catch (e: Exception) {
-                throw Exception("could not decode jsonData", e)
+                Log.d(DEBUG,"loadRecords: could not decode jsonData")
+                throw Exception("loadRecords: could not decode jsonData", e)
             }
         } catch (e: Exception) {
-            throw Exception("bad file.readText()", e)
+            Log.d(DEBUG,"loadRecords: bad file.readText()")
+            throw Exception("loadRecords: bad file.readText()", e)
         }
     } else {
-        throw Exception("file does not exist")
+        throw Exception("loadRecords: file does not exist")
     }
 }
 
