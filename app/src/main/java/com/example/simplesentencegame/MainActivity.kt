@@ -35,9 +35,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.automirrored.filled.ExitToApp
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
@@ -66,7 +63,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -74,7 +70,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -425,7 +420,7 @@ fun LearnSentences(
                                         if (score >= MAX_SCORE) {
                                             showLottieAnimation = true
                                         }
-                                        showNextButton = true // Show "Next sentence" button
+                                        showNextButton = true
                                     }
                                 } else {
                                     showToastWithBeep(context, "Try again!", isCorrect = false)
@@ -447,8 +442,9 @@ fun LearnSentences(
                     }
                 }
 
-                // show translation
-                if (learningOption == LEARN) {
+                // show translation if applicable for learning option
+                if (learningOption == LEARN
+                    || learningOption == PRACTICE_RECALL) {
                     Spacer(modifier = Modifier.height(16.dp))
                     OutlinedTextField(
                         value = translation,
