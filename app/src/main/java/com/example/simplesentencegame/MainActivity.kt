@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package com.example.simplesentencegame
 
 import android.media.AudioManager
@@ -32,7 +34,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -60,6 +66,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -106,6 +113,8 @@ const val STATS = "STATS"
 const val HOWTO = "HOWTO"
 const val EXTRAS = "EXTRAS"
 const val EXIT = "EXIT"
+val LEARNING_CYCLE = listOf(LEARN, PRACTICE_RECALL, PRACTICE_SOURCE, PRACTICE_TARGET)
+val NUMBER_OF_LEARNING_OPTIONS = LEARNING_CYCLE.size
 
 data class ButtonConfig(val text: String, val onClick: () -> Unit)
 
@@ -281,7 +290,7 @@ fun LearnSentences(
         topBar = {
             CustomTopAppBar(
                 navController = navController,
-                context = context
+                learningOption = learningOption
             )
         }
     ) { paddingValues ->
@@ -673,12 +682,14 @@ fun StatsScreen(navController: NavController) {
 
 @Composable
 fun ExtrasScreen(navController: NavController) {
-
-    Column(modifier = Modifier.padding(16.dp)) {
-        Text(text = "Placeholder for Extras Screen")
-        Spacer(modifier = Modifier.height(16.dp))
-        Button(onClick = { navController.popBackStack() }) {
-            Text("Back to Home")
+    Column(modifier = Modifier.fillMaxSize()) {
+        // The rest of your screen content
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(text = "Placeholder for Extras Screen")
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(onClick = { navController.popBackStack() }) {
+                Text("Back to Home")
+            }
         }
     }
 }
@@ -734,29 +745,37 @@ fun HowToScreen(navController: NavController) {
 @Composable
 fun CustomTopAppBar(
     navController: NavController,
-    context: MainActivity
+    learningOption: String
 ) {
+    val currentIndex = LEARNING_CYCLE.indexOf(learningOption)
+    val previousIndex = (currentIndex - 1 + NUMBER_OF_LEARNING_OPTIONS) % NUMBER_OF_LEARNING_OPTIONS
+    val nextIndex = (currentIndex + 1) % NUMBER_OF_LEARNING_OPTIONS
+
     TopAppBar(
-        title = { Text(text = stringResource(id = R.string.app_name), overflow = TextOverflow.Ellipsis) },
+        title = { }, // Leave this empty to remove the title
         colors = TopAppBarDefaults.topAppBarColors(containerColor = DeepSkyBlue),
-        navigationIcon = {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .clickable { navController.navigateUp() }
-                    .padding(horizontal = 16.dp)
-            ) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Back", style = MaterialTheme.typography.bodyLarge)
-            }
-        },
         actions = {
-            IconButton(onClick = { context.finish() }, modifier = Modifier.width(100.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Exit")
-                    Text(text = "Exit")
-                }
+            // Previous Arrow with Text
+            IconButton(onClick = { navController.navigate(LEARNING_CYCLE[previousIndex]) }) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+            }
+            Text(
+                text = LEARNING_CYCLE[previousIndex],
+                modifier = Modifier.clickable { navController.navigate(LEARNING_CYCLE[previousIndex]) }
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            // Home Icon
+            IconButton(onClick = { navController.navigate(HOME) }) {
+                Icon(Icons.Filled.Home, contentDescription = "Home")
+            }
+            Spacer(modifier = Modifier.weight(1f))
+            // Next Arrow with Text
+            Text(
+                text = LEARNING_CYCLE[nextIndex],
+                modifier = Modifier.clickable { navController.navigate(LEARNING_CYCLE[nextIndex]) }
+            )
+            IconButton(onClick = { navController.navigate(LEARNING_CYCLE[nextIndex]) }) {
+                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Next")
             }
         }
     )
