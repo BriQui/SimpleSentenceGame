@@ -245,13 +245,13 @@ fun LearnSentences(
 
     // Ensure valid currentRecordIndex within records range
     val currentRecord = if (records.isNotEmpty()) records[currentRecordIndex] else null
-    val sourceSentence = currentRecord!!.sourceSentence // should never throw exception
+    val completeSentence = currentRecord!!.sourceSentence // should never throw exception
     val gameSentence = currentRecord.gameSentence
     val translation = currentRecord.translation
     var answerSentence: String = ""
 
     val timeFactorPerChar = TIME_FACTOR_PER_CHAR // how long to display sentence, i.e. delay.
-    val calculatedDelay = sourceSentence.length.times(timeFactorPerChar)
+    val calculatedDelay = completeSentence.length.times(timeFactorPerChar)
 
     val textStyle = TextStyle(
         fontSize = 16.sp,
@@ -297,15 +297,15 @@ fun LearnSentences(
                 when (learningOption) {
                     LEARN -> {
                         HeaderWithImage(headerText = LEARN, showSecondaryInfo = false)
-                        answerSentence = sourceSentence
+                        answerSentence = completeSentence
                         if (!spoken) {
-                            speak(sourceSentence)
+                            speak(completeSentence)
                             spoken = true
                         }
                         SentenceDisplay(
                             testSentence = gameSentence,
                             answerSentence = answerSentence,
-                            flashAnswerSentence = flashAnswerSentence,
+                            flashAnswerSentence = flashAnswerSentence, // flash answer briefly
                             showRefreshButton = true,
                             onRefresh = { onRefresh() },
                             textStyle = textStyle
@@ -313,9 +313,9 @@ fun LearnSentences(
                     }
                     PRACTICE_RECALL -> {
                         HeaderWithImage(headerText = PRACTICE_RECALL, showSecondaryInfo = false)
-                        answerSentence = sourceSentence
+                        answerSentence = completeSentence
                         if (!spoken) {
-                            speak(sourceSentence)
+                            speak(completeSentence)
                             spoken = true
                         }
                         SentenceDisplay(
@@ -331,11 +331,11 @@ fun LearnSentences(
                         HeaderWithImage(headerText = PRACTICE_SOURCE, showSecondaryInfo = false)
                         answerSentence = translation
                         if (!spoken) {
-                            speak(sourceSentence)
+                            speak(completeSentence)
                             spoken = true
                         }
                         SentenceDisplay(
-                            testSentence = sourceSentence,
+                            testSentence = completeSentence,
                             answerSentence = answerSentence,
                             flashAnswerSentence = false,
                             onRefresh = { onRefresh() },
@@ -345,9 +345,9 @@ fun LearnSentences(
                     }
                     PRACTICE_TARGET -> {
                         HeaderWithImage(headerText = PRACTICE_TARGET, showSecondaryInfo = false)
-                        answerSentence = sourceSentence
+                        answerSentence = completeSentence
                         if (!spoken) {
-                            speak(sourceSentence)
+                            speak(completeSentence)
                             spoken = true
                         }
                         SentenceDisplay(
@@ -410,7 +410,7 @@ fun LearnSentences(
                             onClick = {
                                 if (userInput.trim() == answerSentence) {
                                     showTickMark = true
-                                    speak(sourceSentence)
+                                    speak(completeSentence)
                                     coroutineScope.launch {
                                         score += 1
                                         if (score >= MAX_SCORE) {
