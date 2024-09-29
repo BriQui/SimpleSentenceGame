@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -242,8 +243,8 @@ fun LearnSentences(
     var spoken by remember { mutableStateOf(false) }
     var flashAnswerSentence by remember { mutableStateOf(true) }
     var refreshButton by remember { mutableIntStateOf(0) }
-
-    var showNextButton by remember { mutableStateOf(false) }
+    var showNextSentenceButton by remember { mutableStateOf(false) }
+    var showGoToNextOptionButton by remember { mutableStateOf(false) }
 
     val coroutineScope = rememberCoroutineScope()
 
@@ -253,6 +254,10 @@ fun LearnSentences(
     val gameSentence = currentRecord.gameSentence
     val translation = currentRecord.translation
     var answerSentence = ""
+
+    // Define the next learning option based on the current one
+    val nextLearningOptionIndex = (LEARNING_CYCLE.indexOf(learningOption) + 1) % NUMBER_OF_LEARNING_OPTIONS
+    val nextLearningOption = LEARNING_CYCLE[nextLearningOptionIndex]
 
     val timeFactorPerChar = TIME_FACTOR_PER_CHAR // how long to display sentence, i.e. delay.
     val calculatedDelay = sourceSentence.length.times(timeFactorPerChar)
@@ -386,7 +391,7 @@ fun LearnSentences(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
                 ) {
-                    if (showNextButton) {
+                    if (showNextSentenceButton) {
                         Button(
                             onClick = {
                                 // Move to the next sentence
@@ -394,7 +399,7 @@ fun LearnSentences(
                                 userInput = ""
                                 spoken = false
                                 showTickMark = false
-                                showNextButton = false // Hide "Next sentence" button
+                                showNextSentenceButton = false // Hide "Next sentence" button
                             },
                             modifier = Modifier.height(28.dp),
                             colors = ButtonDefaults.buttonColors(
@@ -409,6 +414,27 @@ fun LearnSentences(
                                 style = MaterialTheme.typography.bodySmall
                             )
                         }
+                        if (showGoToNextOptionButton) {
+                            Spacer(modifier = Modifier.width(8.dp)) // Optional spacing between buttons
+                            Button(
+                                onClick = {
+                                    navController.navigate(nextLearningOption) // Navigate to the next learning option
+                                },
+                                modifier = Modifier.height(28.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = DeepSkyBlue,
+                                    contentColor = Color.Black
+                                ),
+                                shape = RoundedCornerShape(4.dp),
+                                contentPadding = PaddingValues(4.dp)
+                            ) {
+                                Text(
+                                    text = "Go to $nextLearningOption",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                        }
+
                     } else {
                         Button(
                             onClick = {
@@ -419,8 +445,9 @@ fun LearnSentences(
                                         score += 1
                                         if (score >= MAX_SCORE) {
                                             showLottieAnimation = true
+                                            showGoToNextOptionButton = true
                                         }
-                                        showNextButton = true
+                                        showNextSentenceButton = true
                                     }
                                 } else {
                                     showToastWithBeep(context, "Try again!", isCorrect = false)
@@ -441,7 +468,6 @@ fun LearnSentences(
                         }
                     }
                 }
-
                 // show translation if applicable for learning option
                 if (learningOption == LEARN
                     || learningOption == PRACTICE_RECALL) {
@@ -499,7 +525,7 @@ fun LearnSentences(
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         .fillMaxSize()
-                        .padding(top = 24.dp)
+                        .padding(top = 32.dp)
                 ) {
                     LottieAnimation(
                         composition = lottieComposition,
