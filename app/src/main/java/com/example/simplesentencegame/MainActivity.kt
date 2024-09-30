@@ -91,6 +91,12 @@ import java.util.Locale
 val monoSpace = FontFamily.Monospace
 val DeepSkyBlue = Color(0xFF00BFFF)
 val LightGreen = Color(0xFF90EE90)
+val customTypography = TextStyle(
+    fontSize = 20.sp,
+    fontWeight = FontWeight.Bold,
+    lineHeight = 24.sp,
+    letterSpacing = 0.15.sp
+)
 
 const val SENTENCES_FILENAME = "sentenceDatabase.json"
 const val VOCAB_FILENAME = "vocab.json"
@@ -105,7 +111,8 @@ const val LEARN = "LEARN"
 const val PRACTICE_RECALL = "PRACTICE RECALL"
 const val PRACTICE_SOURCE = "DUTCH→ENGLISH"
 const val PRACTICE_TARGET = "ENGLISH→DUTCH"
-const val STATS = "STATS"
+// const val STATS = "STATS"
+const val VOCAB = "VOCABULARY"
 const val HOWTO = "HOWTO"
 const val EXTRAS = "EXTRAS"
 const val EXIT = "EXIT"
@@ -188,7 +195,7 @@ class MainActivity : ComponentActivity() {
                                 ButtonConfig(PRACTICE_RECALL) { navController.navigate(PRACTICE_RECALL) },
                                 ButtonConfig(PRACTICE_SOURCE) { navController.navigate(PRACTICE_SOURCE) },
                                 ButtonConfig(PRACTICE_TARGET) { navController.navigate(PRACTICE_TARGET) },
-                                ButtonConfig(STATS) { navController.navigate(STATS) },
+                                ButtonConfig(VOCAB) { navController.navigate(VOCAB) },
                                 ButtonConfig(EXTRAS) { navController.navigate(EXTRAS) },
                                 ButtonConfig(HOWTO) { navController.navigate(HOWTO) },
                                 ButtonConfig(EXIT) { this@MainActivity.finish() }
@@ -221,8 +228,8 @@ class MainActivity : ComponentActivity() {
                     LearnSentences(PRACTICE_TARGET,
                         navController, records, this@MainActivity) { text -> text.speak(tts) }
                 }
-                composable(STATS) {
-                    StatsScreen(navController)
+                composable(VOCAB) {
+                    VocabScreen(navController, vocab)
                 }
                 composable(EXTRAS) {
                     ExtrasScreen(navController)
@@ -736,9 +743,28 @@ fun showToastWithBeep(context: MainActivity, message: String, isCorrect: Boolean
 }
 
 @Composable
-fun StatsScreen(navController: NavController) {
-    Column(modifier = Modifier.padding(16.dp)) {
-        Text(text = "Placeholder for Stats Screen")
+fun VocabScreen(navController: NavController, vocabRecords: List<VocabRecord>) {
+    Column(
+        modifier = Modifier
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState())
+    ) {
+        Text(text = "Vocabulary Records", style = customTypography) // Use custom typography
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        vocabRecords.forEach { record ->
+            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                Text(text = record.word, modifier = Modifier.weight(1f))
+                Text(text = record.wordType, modifier = Modifier.weight(1f))
+                Text(text = record.translation, modifier = Modifier.weight(1f))
+                if (record.article.isNotEmpty()) {
+                    Text(text = record.article, modifier = Modifier.weight(1f))
+                }
+            }
+            // Divider() // Optional divider between records
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = { navController.popBackStack() }) {
             Text("Back to Home")
