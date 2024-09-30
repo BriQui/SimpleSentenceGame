@@ -26,7 +26,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -93,7 +92,8 @@ val monoSpace = FontFamily.Monospace
 val DeepSkyBlue = Color(0xFF00BFFF)
 val LightGreen = Color(0xFF90EE90)
 
-const val FILENAME = "sentenceDatabase.json"
+const val SENTENCES_FILENAME = "sentenceDatabase.json"
+const val VOCAB_FILENAME = "vocab.json"
 const val MAX_SCORE = 10 // # correct answers to gen animation
 const val TIME_FACTOR_PER_CHAR = 60
 const val DEBUG = "BQ_DEBUG"
@@ -115,7 +115,21 @@ val NUMBER_OF_LEARNING_OPTIONS = LEARNING_CYCLE.size
 data class ButtonConfig(val text: String, val onClick: () -> Unit)
 
 @Serializable
-data class SentenceRecord(val id: Int, val sourceSentence: String, val gameSentence: String, val translation: String)
+data class SentenceRecord(
+    val id: Int,
+    val sourceSentence: String,
+    val gameSentence: String,
+    val translation: String
+)
+@Serializable
+data class VocabRecord(
+    val word: String,
+    val wordType: String,
+    val translation: String,
+    val article: String = "",
+    val wordsChunkId: Int,
+    val sentencesChunkID: Int
+)
 
 @ExperimentalMaterial3Api
 class MainActivity : ComponentActivity() {
@@ -141,9 +155,13 @@ class MainActivity : ComponentActivity() {
         }
 
         // get sentences from file
-        val filePath = "${this.filesDir.path}/$FILENAME"
-        val records = loadRecords(filePath)
-        if (records.isEmpty()) throw Exception("Bad data file!!!")
+        val sentencesFile = "${this.filesDir.path}/$SENTENCES_FILENAME"
+        val records = loadSentencesFromFile(sentencesFile)
+        if (records.isEmpty()) throw Exception("MainActivity: Bad Sentences file!!!")
+        // get vocab from file
+        val vocabFile = "${this.filesDir.path}/$VOCAB_FILENAME"
+        val vocab = loadVocab(vocabFile)
+        if (vocab.isEmpty()) throw Exception("MainActivity: Bad Vocab file!!!")
 
         // main menu
         setContent {
@@ -651,8 +669,8 @@ fun HeaderWithImage(headerText: String, showSecondaryInfo: Boolean) {
     }
 }
 
-// simple version of load sentences
-fun loadRecords(filePath: String): List<SentenceRecord> {
+// load sentences
+fun loadSentencesFromFile(filePath: String): List<SentenceRecord> {
     Log.d(DEBUG, "loadRecords: filePath=$filePath")
     val file = File(filePath)
     return if (file.exists()) {
@@ -661,12 +679,34 @@ fun loadRecords(filePath: String): List<SentenceRecord> {
             try {
                 Json.decodeFromString(jsonData)
             } catch (e: Exception) {
-                Log.d(DEBUG,"loadRecords: could not decode jsonData")
-                throw Exception("loadRecords: could not decode jsonData", e)
+                Log.d(DEBUG,"loadSentencesFromFile: could not decode jsonData")
+                throw Exception("loadSentencesFromFile: could not decode jsonData", e)
             }
         } catch (e: Exception) {
-            Log.d(DEBUG,"loadRecords: bad file.readText()")
-            throw Exception("loadRecords: bad file.readText()", e)
+            Log.d(DEBUG,"loadSentencesFromFile: bad file.readText()")
+            throw Exception("loadSentencesFromFile: bad file.readText()", e)
+        }
+    } else {
+        throw Exception("loadSentencesFromFile: file does not exist")
+    }
+}
+
+// load vocab
+fun loadVocab(filePath: String): List<VocabRecord> {
+    Log.d(DEBUG, "loadVocab: filePath=$filePath")
+    val file = File(filePath)
+    return if (file.exists()) {
+        try {
+            val jsonData = file.readText()
+            try {
+                Json.decodeFromString<List<VocabRecord>>(jsonData)
+            } catch (e: Exception) {
+                Log.d(DEBUG,"loadVocab: could not decode jsonData")
+                throw Exception("loadVocab: could not decode jsonData", e)
+            }
+        } catch (e: Exception) {
+            Log.d(DEBUG,"loadVocab: bad file.readText()")
+            throw Exception("loadVocab: bad file.readText()", e)
         }
     } else {
         throw Exception("loadRecords: file does not exist")
