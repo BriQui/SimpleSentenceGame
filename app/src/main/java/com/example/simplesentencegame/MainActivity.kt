@@ -167,7 +167,8 @@ class MainActivity : ComponentActivity() {
         if (records.isEmpty()) throw Exception("MainActivity: Bad Sentences file!!!")
         // get vocab from file
         val vocabFile = "${this.filesDir.path}/$VOCAB_FILENAME"
-        val vocab = loadVocab(vocabFile)
+        val vocab = loadVocab(vocabFile).sortedBy { it.word }
+
         if (vocab.isEmpty()) throw Exception("MainActivity: Bad Vocab file!!!")
 
         // main menu
@@ -676,6 +677,28 @@ fun HeaderWithImage(headerText: String, showSecondaryInfo: Boolean) {
     }
 }
 
+@ExperimentalMaterial3Api
+fun showToastWithBeep(context: MainActivity, message: String, isCorrect: Boolean) {
+    // Create and show the Toast
+    val toast = Toast.makeText(context, message, Toast.LENGTH_SHORT)
+    toast.setGravity(Gravity.CENTER_VERTICAL, 0, 0)
+    toast.show()
+
+    // Create the ToneGenerator instance
+    val toneGen = ToneGenerator(AudioManager.STREAM_ALARM, 100)
+
+    if (isCorrect) {
+        // Play a pleasant tone
+        toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, 200)
+    } else {
+        // Play an unpleasant tone
+        toneGen.startTone(ToneGenerator.TONE_PROP_NACK, 200)
+    }
+
+    val handler = Handler(Looper.getMainLooper())
+    handler.postDelayed({ toneGen.release() }, 1000)
+}
+
 // load sentences
 fun loadSentencesFromFile(filePath: String): List<SentenceRecord> {
     Log.d(DEBUG, "loadRecords: filePath=$filePath")
@@ -720,30 +743,9 @@ fun loadVocab(filePath: String): List<VocabRecord> {
     }
 }
 
-@ExperimentalMaterial3Api
-fun showToastWithBeep(context: MainActivity, message: String, isCorrect: Boolean) {
-    // Create and show the Toast
-    val toast = Toast.makeText(context, message, Toast.LENGTH_SHORT)
-    toast.setGravity(Gravity.CENTER_VERTICAL, 0, 0)
-    toast.show()
-
-    // Create the ToneGenerator instance
-    val toneGen = ToneGenerator(AudioManager.STREAM_ALARM, 100)
-
-    if (isCorrect) {
-        // Play a pleasant tone
-        toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, 200)
-    } else {
-        // Play an unpleasant tone
-        toneGen.startTone(ToneGenerator.TONE_PROP_NACK, 200)
-    }
-
-    val handler = Handler(Looper.getMainLooper())
-    handler.postDelayed({ toneGen.release() }, 1000)
-}
-
 @Composable
 fun VocabScreen(navController: NavController, vocabRecords: List<VocabRecord>) {
+    // sort list alphabetically
     Column(
         modifier = Modifier
             .padding(16.dp)
@@ -754,13 +756,17 @@ fun VocabScreen(navController: NavController, vocabRecords: List<VocabRecord>) {
         Spacer(modifier = Modifier.height(16.dp))
 
         vocabRecords.forEach { record ->
-            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-                Text(text = record.word, modifier = Modifier.weight(1f))
+            Row(modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 2.dp)) {
+                Text(text = record.word)
+                if (record.article.isNotEmpty()) {
+                    Text(text = ", ${record.article}")
+                }
+/*
                 Text(text = record.wordType, modifier = Modifier.weight(1f))
                 Text(text = record.translation, modifier = Modifier.weight(1f))
-                if (record.article.isNotEmpty()) {
-                    Text(text = record.article, modifier = Modifier.weight(1f))
-                }
+*/
             }
             // Divider() // Optional divider between records
         }
