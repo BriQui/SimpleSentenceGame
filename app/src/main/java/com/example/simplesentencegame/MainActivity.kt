@@ -1,7 +1,8 @@
 @file:OptIn(ExperimentalMaterial3Api::class)
 
 package com.example.simplesentencegame
-
+import android.content.Context
+import android.database.sqlite.SQLiteDatabase
 import android.media.AudioManager
 import android.media.ToneGenerator
 import android.os.Bundle
@@ -98,11 +99,12 @@ val customTypography = TextStyle(
     letterSpacing = 0.15.sp
 )
 
-const val SENTENCES_FILENAME = "sentenceDatabase.json"
+const val DEBUG = "BQ_DEBUG"
+
+// const val SENTENCES_FILENAME = "sentenceDatabase.json"
 const val VOCAB_FILENAME = "vocab.json"
 const val MAX_SCORE = 10 // # correct answers to gen animation
 const val TIME_FACTOR_PER_CHAR = 60
-const val DEBUG = "BQ_DEBUG"
 // const val BUTTON_HEIGHT = 35
 // val tonedDownButtonColor = Color.Blue.copy(alpha = 0.7f)
 const val LOTTIE_SIZE = 400
@@ -121,6 +123,30 @@ val NUMBER_OF_LEARNING_OPTIONS = LEARNING_CYCLE.size
 
 data class ButtonConfig(val text: String, val onClick: () -> Unit)
 
+/*
+enum class WordType(val value: Int) {
+    NOUN(0),
+    VERB(1),
+    ADJECTIVE(2),
+    ADVERB(3),
+    PRONOUN(4),
+    PREPOSITION(5),
+    CONJUNCTION(6),
+    INTERJECTION(7);
+
+    companion object {
+        // Function to get the WordType by its integer value
+        fun fromValue(value: Int): WordType? {
+            return entries.find { it.value == value }
+        }
+    }
+}
+// Standalone function to get the WordType as a string
+fun getWordTypeAsString(value: Int): String? {
+    return WordType.fromValue(value)?.name
+}
+*/
+
 @Serializable
 data class SentenceRecord(
     val id: Int,
@@ -128,6 +154,7 @@ data class SentenceRecord(
     val gameSentence: String,
     val translation: String
 )
+
 @Serializable
 data class VocabRecord(
     val word: String,
@@ -161,10 +188,14 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        // get sentences from file
+        /*// get sentences from file
         val sentencesFile = "${this.filesDir.path}/$SENTENCES_FILENAME"
         val records = loadSentencesFromFile(sentencesFile)
         if (records.isEmpty()) throw Exception("MainActivity: Bad Sentences file!!!")
+        */
+        // get sentences from database
+        val records = loadSentences(this)
+
         // get vocab from file
         val vocabFile = "${this.filesDir.path}/$VOCAB_FILENAME"
         val vocab = loadVocab(vocabFile).sortedBy { it.word }
@@ -700,8 +731,9 @@ fun showToastWithBeep(context: MainActivity, message: String, isCorrect: Boolean
 }
 
 // load sentences
+/*
 fun loadSentencesFromFile(filePath: String): List<SentenceRecord> {
-    Log.d(DEBUG, "loadRecords: filePath=$filePath")
+    Log.d(DEBUG, "loadSentencesFromFile: filePath=$filePath")
     val file = File(filePath)
     return if (file.exists()) {
         try {
@@ -720,6 +752,7 @@ fun loadSentencesFromFile(filePath: String): List<SentenceRecord> {
         throw Exception("loadSentencesFromFile: file does not exist")
     }
 }
+*/
 
 // load vocab
 fun loadVocab(filePath: String): List<VocabRecord> {
@@ -739,7 +772,7 @@ fun loadVocab(filePath: String): List<VocabRecord> {
             throw Exception("loadVocab: bad file.readText()", e)
         }
     } else {
-        throw Exception("loadRecords: file does not exist")
+        throw Exception("loadVocab: file does not exist")
     }
 }
 
@@ -877,4 +910,54 @@ fun CustomTopAppBar(
             }
         }
     )
+}
+
+fun loadSentences(context: Context): List<SentenceRecord> {
+    val dbHelper = MyDatabaseHelper(context)
+    val db: SQLiteDatabase = dbHelper.readableDatabase
+
+    val sentenceRecords = mutableListOf<SentenceRecord>()
+
+    try {
+        sentenceRecords.addAll(loadSentencesFromDB(db))
+    } catch (e: Exception) {
+        Log.e(DEBUG, "Error loading sentences from database: ${e.message}")
+        throw Exception("Error loading sentences from database: ${e.message}")
+    } finally {
+        db.close() // Always close the database
+    }
+
+    return sentenceRecords
+}
+
+fun loadSentencesFromDB(db: SQLiteDatabase): List<SentenceRecord> {
+    Log.d(DEBUG, "loadSentencesFromDB: loading records from database")
+
+    val sentenceRecords = mutableListOf<SentenceRecord>()
+
+    // Query to select all rows from the 'sentences' table
+    val cursor = db.rawQuery("SELECT id, sourceSentence, gameSentence, translation FROM sentences", null)
+
+    // Move the cursor to the first row
+    if (cursor.moveToFirst()) {
+        do {
+            // Extract the values from the cursor
+            val id = cursor.getInt(cursor.getColumnIndexOrThrow("id"))
+            val sourceSentence = cursor.getString(cursor.getColumnIndexOrThrow("sourceSentence"))
+            val gameSentence = cursor.getString(cursor.getColumnIndexOrThrow("gameSentence"))
+            val translation = cursor.getString(cursor.getColumnIndexOrThrow("translation"))
+
+            // Add a new SentenceRecord to the list
+            sentenceRecords.add(SentenceRecord(id, sourceSentence, gameSentence, translation))
+        } while (cursor.moveToNext()) // Move to the next row
+    } else {
+        Log.e(DEBUG, "loadSentencesFromDB: No rows found in database.")
+    }
+
+    // Close the cursor after the query
+    cursor.close()
+
+    Log.d(DEBUG, "loadSentencesFromDB: loaded ${sentenceRecords.size} rows")
+    if(sentenceRecords.size < 1) throw Exception("loadSentencesFromDB: NO rows loaded")
+    return sentenceRecords
 }
