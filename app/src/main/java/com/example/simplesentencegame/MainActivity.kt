@@ -103,7 +103,7 @@ const val DEBUG = "BQ_DEBUG"
 
 // const val SENTENCES_FILENAME = "sentenceDatabase.json"
 const val VOCAB_FILENAME = "vocab.json"
-const val MAX_SCORE = 10 // # correct answers to gen animation
+// const val MAX_SCORE = 10 // # correct answers to gen animation
 const val TIME_FACTOR_PER_CHAR = 60
 // const val BUTTON_HEIGHT = 35
 // val tonedDownButtonColor = Color.Blue.copy(alpha = 0.7f)
@@ -124,16 +124,11 @@ val NUMBER_OF_LEARNING_OPTIONS = LEARNING_CYCLE.size
 data class ButtonConfig(val text: String, val onClick: () -> Unit)
 
 /*
+enum class Article(val value: Int) {
+    DE("de"), HET("het"), EMPTY("") }
 enum class WordType(val value: Int) {
-    NOUN(0),
-    VERB(1),
-    ADJECTIVE(2),
-    ADVERB(3),
-    PRONOUN(4),
-    PREPOSITION(5),
-    CONJUNCTION(6),
-    INTERJECTION(7);
-
+    NOUN("noun"), VERB("verb"), ADJECTIVE("adjective"), ADVERB("adverb"), PRONOUN("pronoun"), PREPOSITION("preposition"), CONJUNCTION("conjunction"), INTERJECTION("interjection") }
+;
     companion object {
         // Function to get the WordType by its integer value
         fun fromValue(value: Int): WordType? {
@@ -500,7 +495,8 @@ fun LearnSentences(
                                     speak(sourceSentence)
                                     coroutineScope.launch {
                                         score += 1
-                                        if (score >= MAX_SCORE) {
+//                                        if (score >= MAX_SCORE) {
+                                        if (score >= records.size) {
                                             showLottieAnimation = true
                                             showGoToNextOptionButton = true
                                         }
@@ -539,7 +535,8 @@ fun LearnSentences(
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
-                val progress = score / MAX_SCORE.toFloat()
+//                val progress = score / MAX_SCORE.toFloat()
+                val progress = score / records.size.toFloat()
                 // Text(text = "${(progress * 100).toInt()}%")
                 Box(
                     contentAlignment = Alignment.Center,
@@ -555,7 +552,8 @@ fun LearnSentences(
                         color = LightGreen,
                     )
                     Text(
-                        text = if (score > 0) "$score correct" else "",
+                        // text = if (score > 0) "$score correct" else "",
+                        text = if (score > 0) "${(progress * 100).toInt()}%" else "",
                         color = Color.Black,
                         modifier = Modifier.align(Alignment.Center))
                 }
@@ -592,7 +590,8 @@ fun LearnSentences(
                             .align(Alignment.TopCenter)
                     )
                     Text(
-                        text = "You got $MAX_SCORE correct… very cool!",
+//                        text = "You got $MAX_SCORE correct… very cool!",
+                        text = "All correct!",
                         style = TextStyle(
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
