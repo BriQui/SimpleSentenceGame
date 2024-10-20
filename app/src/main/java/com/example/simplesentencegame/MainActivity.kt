@@ -189,7 +189,7 @@ class MainActivity : ComponentActivity() {
         if (records.isEmpty()) throw Exception("MainActivity: Bad Sentences file!!!")
         */
         // get sentences from database
-        val records = loadSentences(this)
+        val records = loadSentencesFromDb(this)
 
         // get vocab from file
         val vocabFile = "${this.filesDir.path}/$VOCAB_FILENAME"
@@ -911,7 +911,7 @@ fun CustomTopAppBar(
     )
 }
 
-fun loadSentences(context: Context): List<SentenceRecord> {
+fun loadSentencesFromDb(context: Context): List<SentenceRecord> {
     val dbHelper = MyDatabaseHelper(context)
     val db: SQLiteDatabase = dbHelper.readableDatabase
 
