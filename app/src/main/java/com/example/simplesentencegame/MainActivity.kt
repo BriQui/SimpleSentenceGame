@@ -194,7 +194,6 @@ class MainActivity : ComponentActivity() {
         // get vocab from file
         val vocabFile = "${this.filesDir.path}/$VOCAB_FILENAME"
         val vocab = loadVocab(vocabFile).sortedBy { it.word }
-
         if (vocab.isEmpty()) throw Exception("MainActivity: Bad Vocab file!!!")
 
         // main menu
@@ -761,7 +760,8 @@ fun loadVocab(filePath: String): List<VocabRecord> {
         try {
             val jsonData = file.readText()
             try {
-                Json.decodeFromString<List<VocabRecord>>(jsonData)
+                // Json.decodeFromString<List<VocabRecord>>(jsonData)
+                Json.decodeFromString<List<VocabRecord>>(jsonData).take(10)
             } catch (e: Exception) {
                 Log.d(DEBUG,"loadVocab: could not decode jsonData")
                 throw Exception("loadVocab: could not decode jsonData", e)
