@@ -186,10 +186,10 @@ class MainActivity : ComponentActivity() {
         /*// get sentences from file
         val sentencesFile = "${this.filesDir.path}/$SENTENCES_FILENAME"
         val records = loadSentencesFromFile(sentencesFile)
-        if (records.isEmpty()) throw Exception("MainActivity: Bad Sentences file!!!")
         */
         // get sentences from database
         val records = loadSentencesFromDb(this)
+        if (records.isEmpty()) throw Exception("MainActivity: No sentences found in db!!!")
 
         // get vocab from file
         val vocabFile = "${this.filesDir.path}/$VOCAB_FILENAME"
