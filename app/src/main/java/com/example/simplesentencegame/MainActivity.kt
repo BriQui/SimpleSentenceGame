@@ -113,6 +113,7 @@ const val LEARN = "LEARN"
 const val PRACTICE_RECALL = "PRACTICE RECALL"
 const val PRACTICE_SOURCE = "DUTCH→ENGLISH"
 const val PRACTICE_TARGET = "ENGLISH→DUTCH"
+const val TEST_CHUNK = "TEST"
 // const val STATS = "STATS"
 const val VOCAB = "VOCABULARY"
 const val HOWTO = "HOWTO"
@@ -221,6 +222,7 @@ class MainActivity : ComponentActivity() {
                                 ButtonConfig(PRACTICE_RECALL) { navController.navigate(PRACTICE_RECALL) },
                                 ButtonConfig(PRACTICE_SOURCE) { navController.navigate(PRACTICE_SOURCE) },
                                 ButtonConfig(PRACTICE_TARGET) { navController.navigate(PRACTICE_TARGET) },
+                                ButtonConfig(TEST_CHUNK) { navController.navigate(TEST_CHUNK) },
                                 ButtonConfig(VOCAB) { navController.navigate(VOCAB) },
                                 ButtonConfig(EXTRAS) { navController.navigate(EXTRAS) },
                                 ButtonConfig(HOWTO) { navController.navigate(HOWTO) },
@@ -252,6 +254,10 @@ class MainActivity : ComponentActivity() {
                 }
                 composable(PRACTICE_TARGET) {
                     LearnSentences(PRACTICE_TARGET,
+                        navController, records, this@MainActivity) { text -> text.speak(tts) }
+                }
+                composable(TEST_CHUNK) {
+                    TestChunk(TEST_CHUNK,
                         navController, records, this@MainActivity) { text -> text.speak(tts) }
                 }
                 composable(VOCAB) {
@@ -602,6 +608,145 @@ fun LearnSentences(
                             .align(Alignment.Center)
                             .padding(bottom = 16.dp),
                         textAlign = TextAlign.Center
+                    )
+                }
+            }
+        }
+    }
+}
+
+@ExperimentalMaterial3Api
+@Composable
+fun TestChunk(
+    learningOption: String,
+    navController: NavController,
+    records: List<SentenceRecord>,
+    context: MainActivity,
+    speak: (String) -> Unit
+) {
+    // State variables
+    var currentRecordIndex by remember { mutableIntStateOf(0) }
+    var userInput by remember { mutableStateOf("") }
+    var showTickMark by remember { mutableStateOf(false) }
+    var showNextSentenceButton by remember { mutableStateOf(false) }
+    var showLottieAnimation by remember { mutableStateOf(false) }
+    var score by remember { mutableIntStateOf(0) }
+
+    val currentRecord = if (records.isNotEmpty()) records[currentRecordIndex] else null
+    val sourceSentence = currentRecord!!.sourceSentence // original sentence
+    val displaySentence = jumbleWords(sourceSentence).lowercase() // jumbled sentence to display
+
+    val focusRequester = remember { FocusRequester() }
+    val coroutineScope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus() // Automatically focus input field
+    }
+
+    Scaffold(
+        topBar = {
+            CustomTopAppBar(navController = navController, learningOption = learningOption)
+        }
+    ) { paddingValues ->
+        Box(modifier = Modifier.padding(paddingValues)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Top
+            ) {
+                // Display the jumbled sentence
+                OutlinedTextField(
+                    value = displaySentence,
+                    onValueChange = {},
+                    label = { Text("Jumbled Sentence") },
+                    readOnly = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Input field for user's answer
+                OutlinedTextField(
+                    value = userInput,
+                    onValueChange = { userInput = it },
+                    label = { Text("Enter the correct sentence") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester)
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Check user input
+                if (showNextSentenceButton) {
+                    // Button to move to the next sentence
+                    Button(
+                        onClick = {
+                            currentRecordIndex = (currentRecordIndex + 1) % records.size
+                            userInput = ""
+                            showTickMark = false
+                            showNextSentenceButton = false
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Next Sentence")
+                    }
+                } else {
+                    // Submit button to check user answer
+                    Button(
+                        onClick = {
+                            if (userInput.trim().trim('.').equals(sourceSentence.trim('.'), ignoreCase = true)) {
+                                // Correct answer
+                                showTickMark = true
+                                speak(sourceSentence) // Speak the correct sentence
+                                score += 1
+
+                                if (score >= records.size) {
+                                    showLottieAnimation = true // Congratulate user when done
+                                } else {
+                                    showNextSentenceButton = true // Move to next sentence
+                                }
+                            } else {
+                                // Incorrect answer
+                                showToastWithBeep(context, "Try again!", isCorrect = false)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Submit")
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Show tick mark for correct answer
+                if (showTickMark) {
+                    Image(
+                        painter = painterResource(id = R.drawable.tick_mark),
+                        contentDescription = "Correct Answer",
+                        modifier = Modifier.size(80.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Display progress
+                val progress = score / records.size.toFloat()
+                LinearProgressIndicator(
+                    progress = progress,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(25.dp)
+                )
+
+                // Show congratulations animation if all answers are correct
+                if (showLottieAnimation) {
+                    LottieAnimation(
+                        composition = rememberLottieComposition(LottieCompositionSpec.Asset("well_done.json")).value,
+                        iterations = LottieConstants.IterateForever,
+                        modifier = Modifier.size(200.dp)
                     )
                 }
             }
