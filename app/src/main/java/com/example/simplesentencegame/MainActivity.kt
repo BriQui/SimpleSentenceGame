@@ -489,7 +489,9 @@ fun LearnSentences(
                     } else {
                         Button(
                             onClick = {
-                                if (userInput.trim() == answerSentence) {
+                                // if (userInput.trim() == answerSentence) {
+                                // ignore whitespace and ending period
+                                if (userInput.isGoodMatch(answerSentence)) {
                                     showTickMark = true
                                     speak(sourceSentence)
                                     coroutineScope.launch {
