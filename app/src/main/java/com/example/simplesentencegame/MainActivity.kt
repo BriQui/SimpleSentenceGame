@@ -118,7 +118,6 @@ const val TEST_CHUNK = "TEST"
 const val VOCAB = "VOCABULARY"
 const val HOWTO = "HOWTO"
 const val EXTRAS = "EXTRAS"
-const val EXIT = "EXIT"
 val LEARNING_CYCLE = listOf(LEARN, PRACTICE_RECALL, PRACTICE_SOURCE, PRACTICE_TARGET)
 val NUMBER_OF_LEARNING_OPTIONS = LEARNING_CYCLE.size
 
@@ -225,8 +224,7 @@ class MainActivity : ComponentActivity() {
                                 ButtonConfig(TEST_CHUNK) { navController.navigate(TEST_CHUNK) },
                                 ButtonConfig(VOCAB) { navController.navigate(VOCAB) },
                                 ButtonConfig(EXTRAS) { navController.navigate(EXTRAS) },
-                                ButtonConfig(HOWTO) { navController.navigate(HOWTO) },
-                                ButtonConfig(EXIT) { this@MainActivity.finish() }
+                                ButtonConfig(HOWTO) { navController.navigate(HOWTO) }
                             )
 
                             buttonConfigurations.forEach { buttonConfig ->
