@@ -1,15 +1,15 @@
 package com.example.simplesentencegame
 
-infix fun String.isGoodMatch(answerSentence: String): Boolean {
-    // Trim the answerSentence and remove a trailing period if it exists
-    val trimmedAnswer = answerSentence.trimEnd('.').trim()
+infix fun String.isGoodMatch(input: String): Boolean {
+    // remove trailing spaces and period
+    val trimmedInput = input.trim().trimEnd('.')
 
-    // Compare the trimmed answer with the user input, ignoring case
-    return this.trim().equals(trimmedAnswer, ignoreCase = true)
+    // compare trimmed string with trimmed input
+    return this.trim().trimEnd('.').equals(trimmedInput, ignoreCase = true)
 }
 fun jumbleWords(input: String): String {
-    // Remove the ending period if it exists
-    val sanitizedInput = input.trimEnd('.')
+    // Remove end spaces and period if these exist
+    val sanitizedInput = input.trim().trimEnd('.')
 
     // Split the input string into words
     val words = sanitizedInput.split(" ").toMutableList()

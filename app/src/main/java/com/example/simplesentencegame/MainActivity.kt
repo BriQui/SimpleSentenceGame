@@ -98,6 +98,11 @@ val customTypography = TextStyle(
     lineHeight = 24.sp,
     letterSpacing = 0.15.sp
 )
+val textStyle = TextStyle(
+    fontSize = 16.sp,
+    fontWeight = FontWeight.Normal,
+    fontFamily = monoSpace // so sentences align on screen for user
+)
 
 const val DEBUG = "BQ_DEBUG"
 
@@ -317,11 +322,13 @@ fun LearnSentences(
     val timeFactorPerChar = TIME_FACTOR_PER_CHAR // how long to display sentence, i.e. delay.
     val calculatedDelay = sourceSentence.length.times(timeFactorPerChar)
 
+/*
     val textStyle = TextStyle(
         fontSize = 16.sp,
         fontWeight = FontWeight.Normal,
         fontFamily = monoSpace // so sentences align on screen for user
     )
+*/
 
     val focusRequester = remember { FocusRequester() }
 
@@ -629,6 +636,8 @@ fun TestChunk(
     var showNextSentenceButton by remember { mutableStateOf(false) }
     var showLottieAnimation by remember { mutableStateOf(false) }
     var score by remember { mutableIntStateOf(0) }
+    var correctAnswerGiven by remember { mutableStateOf(false) } // Tracks if correct answer was given
+    var translationInput by remember { mutableStateOf("") } // Input for translation
 
     val currentRecord = if (records.isNotEmpty()) records[currentRecordIndex] else null
     val sourceSentence = currentRecord!!.sourceSentence // original sentence
@@ -654,61 +663,92 @@ fun TestChunk(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Top
             ) {
-                // Display the jumbled sentence
-                OutlinedTextField(
-                    value = displaySentence,
-                    onValueChange = {},
-                    label = { Text("Jumbled Sentence") },
-                    readOnly = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                HeaderWithImage(headerText = TEST_CHUNK, showSecondaryInfo = false)
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Input field for user's answer
-                OutlinedTextField(
-                    value = userInput,
-                    onValueChange = { userInput = it },
-                    label = { Text("Enter the correct sentence") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(focusRequester)
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Check user input
-                if (showNextSentenceButton) {
-                    // Button to move to the next sentence
-                    Button(
-                        onClick = {
-                            currentRecordIndex = (currentRecordIndex + 1) % records.size
-                            userInput = ""
-                            showTickMark = false
-                            showNextSentenceButton = false
-                        },
+                if (!correctAnswerGiven) {
+                    // Display the jumbled sentence
+                    OutlinedTextField(
+                        value = displaySentence,
+                        onValueChange = {},
+                        label = { Text("Jumbled Sentence") },
+                        readOnly = true,
+                        textStyle = textStyle,
                         modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Next Sentence")
-                    }
-                } else {
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Input field for user's answer
+                    OutlinedTextField(
+                        value = userInput,
+                        onValueChange = { userInput = it },
+                        label = { Text("Enter correct sentence") },
+                        textStyle = textStyle,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(focusRequester)
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
                     // Submit button to check user answer
                     Button(
                         onClick = {
                             if (userInput.trim().trim('.').equals(sourceSentence.trim('.'), ignoreCase = true)) {
                                 // Correct answer
                                 showTickMark = true
+                                correctAnswerGiven = true // Set flag to indicate correct answer given
                                 speak(sourceSentence) // Speak the correct sentence
                                 score += 1
-
-                                if (score >= records.size) {
-                                    showLottieAnimation = true // Congratulate user when done
-                                } else {
-                                    showNextSentenceButton = true // Move to next sentence
-                                }
                             } else {
                                 // Incorrect answer
                                 showToastWithBeep(context, "Try again!", isCorrect = false)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Submit")
+                    }
+                } else {
+                    OutlinedTextField(
+                        value = displaySentence,
+                        onValueChange = {},
+                        label = { Text("Jumbled Sentence") },
+                        readOnly = true,
+                        textStyle = textStyle,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    OutlinedTextField(
+                        value = sourceSentence,
+                        onValueChange = {},
+                        label = { Text("Correct sentence") },
+                        readOnly = true,
+                        textStyle = textStyle,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    // Input field for user's translation
+                    OutlinedTextField(
+                        value = translationInput,
+                        onValueChange = { translationInput = it },
+                        label = { Text("Enter translation") },
+                        textStyle = textStyle,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(focusRequester)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    // Submit button to check translation
+                    Button(
+                        onClick = {
+                            if (translationInput.isGoodMatch(currentRecord.translation)) {
+                                // Correct translation
+                                showNextSentenceButton = true
+                                speak(currentRecord.sourceSentence)
+                            } else {
+                                // Incorrect translation
+                                showToastWithBeep(context, "Translation is incorrect", isCorrect = false)
                             }
                         },
                         modifier = Modifier.fillMaxWidth()
@@ -719,8 +759,8 @@ fun TestChunk(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Show tick mark for correct answer
-                if (showTickMark) {
+                // Show tick mark for correct sentence
+                if (showTickMark && !correctAnswerGiven) {
                     Image(
                         painter = painterResource(id = R.drawable.tick_mark),
                         contentDescription = "Correct Answer",
@@ -746,6 +786,23 @@ fun TestChunk(
                         iterations = LottieConstants.IterateForever,
                         modifier = Modifier.size(200.dp)
                     )
+                }
+
+                // Show button to move to next sentence
+                if (showNextSentenceButton) {
+                    Button(
+                        onClick = {
+                            currentRecordIndex = (currentRecordIndex + 1) % records.size
+                            userInput = ""
+                            translationInput = ""
+                            correctAnswerGiven = false
+                            showTickMark = false
+                            showNextSentenceButton = false
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Next Sentence")
+                    }
                 }
             }
         }
@@ -854,9 +911,10 @@ fun HeaderWithImage(headerText: String, showSecondaryInfo: Boolean) {
 @ExperimentalMaterial3Api
 fun showToastWithBeep(context: MainActivity, message: String, isCorrect: Boolean) {
     // Create and show the Toast
-    val toast = Toast.makeText(context, message, Toast.LENGTH_SHORT)
-    toast.setGravity(Gravity.CENTER_VERTICAL, 0, 0)
-    toast.show()
+    Toast.makeText(context, message, Toast.LENGTH_SHORT).apply {
+        setGravity(Gravity.CENTER, 0, 0) // Set the gravity to center
+        show()
+    }
 
     // Create the ToneGenerator instance
     val toneGen = ToneGenerator(AudioManager.STREAM_ALARM, 100)
