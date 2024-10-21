@@ -515,7 +515,7 @@ fun LearnSentences(
                                         showNextSentenceButton = true
                                     }
                                 } else {
-                                    showToastWithBeep(context, "Try again!", isCorrect = false)
+                                    showToastWithBeep(context, "Try again!", playNiceBeep = false)
                                 }
                             },
                             modifier = Modifier.height(28.dp),
@@ -702,7 +702,7 @@ fun TestChunk(
                                 score += 1
                             } else {
                                 // Incorrect answer
-                                showToastWithBeep(context, "Try again!", isCorrect = false)
+                                showToastWithBeep(context, "Try again!", playNiceBeep = false)
                             }
                         },
                         modifier = Modifier.fillMaxWidth()
@@ -748,7 +748,7 @@ fun TestChunk(
                                 speak(currentRecord.sourceSentence)
                             } else {
                                 // Incorrect translation
-                                showToastWithBeep(context, "Translation is incorrect", isCorrect = false)
+                                showToastWithBeep(context, "Translation is incorrect", playNiceBeep = false)
                             }
                         },
                         modifier = Modifier.fillMaxWidth()
@@ -909,7 +909,7 @@ fun HeaderWithImage(headerText: String, showSecondaryInfo: Boolean) {
 }
 
 @ExperimentalMaterial3Api
-fun showToastWithBeep(context: MainActivity, message: String, isCorrect: Boolean) {
+fun showToastWithBeep(context: MainActivity, message: String, playNiceBeep: Boolean) {
     // Create and show the Toast
     Toast.makeText(context, message, Toast.LENGTH_SHORT).apply {
         setGravity(Gravity.CENTER, 0, 0) // Set the gravity to center
@@ -919,7 +919,7 @@ fun showToastWithBeep(context: MainActivity, message: String, isCorrect: Boolean
     // Create the ToneGenerator instance
     val toneGen = ToneGenerator(AudioManager.STREAM_ALARM, 100)
 
-    if (isCorrect) {
+    if (playNiceBeep) {
         // Play a pleasant tone
         toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, 200)
     } else {
