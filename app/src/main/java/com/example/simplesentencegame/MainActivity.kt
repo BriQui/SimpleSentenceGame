@@ -84,8 +84,6 @@ import com.airbnb.lottie.compose.rememberLottieComposition
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
-import java.io.File
 import java.util.Locale
 
 val monoSpace = FontFamily.Monospace
@@ -100,7 +98,7 @@ val monoTextStyle = TextStyle(
 const val DEBUG = "BQ_DEBUG"
 
 // const val SENTENCES_FILENAME = "sentenceDatabase.json"
-const val VOCAB_FILENAME = "vocab.json"
+// const val VOCAB_FILENAME = "vocab.json"
 // const val MAX_SCORE = 10 // # correct answers to gen animation
 const val TIME_FACTOR_PER_CHAR = 60
 // const val BUTTON_HEIGHT = 35
@@ -933,28 +931,6 @@ fun showToastWithBeep(context: MainActivity, message: String, playNiceBeep: Bool
 }
 
 // load vocab
-fun loadVocab(filePath: String): List<VocabRecord> {
-    Log.d(DEBUG, "loadVocab: filePath=$filePath")
-    val file = File(filePath)
-    return if (file.exists()) {
-        try {
-            val jsonData = file.readText()
-            try {
-                // Json.decodeFromString<List<VocabRecord>>(jsonData)
-                Json.decodeFromString<List<VocabRecord>>(jsonData).take(10)
-            } catch (e: Exception) {
-                Log.d(DEBUG,"loadVocab: could not decode jsonData")
-                throw Exception("loadVocab: could not decode jsonData", e)
-            }
-        } catch (e: Exception) {
-            Log.d(DEBUG,"loadVocab: bad file.readText()")
-            throw Exception("loadVocab: bad file.readText()", e)
-        }
-    } else {
-        throw Exception("loadVocab: file does not exist")
-    }
-}
-
 @Composable
 fun VocabScreen(navController: NavController, vocabRecords: List<VocabRecord>) {
     // sort list alphabetically
