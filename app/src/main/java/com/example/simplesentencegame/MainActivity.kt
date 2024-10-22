@@ -92,13 +92,7 @@ import java.util.Locale
 val monoSpace = FontFamily.Monospace
 val DeepSkyBlue = Color(0xFF00BFFF)
 val LightGreen = Color(0xFF90EE90)
-val customTypography = TextStyle(
-    fontSize = 20.sp,
-    fontWeight = FontWeight.Bold,
-    lineHeight = 24.sp,
-    letterSpacing = 0.15.sp
-)
-val textStyle = TextStyle(
+val monoTextStyle = TextStyle(
     fontSize = 16.sp,
     fontWeight = FontWeight.Normal,
     fontFamily = monoSpace // so sentences align on screen for user
@@ -120,7 +114,7 @@ const val PRACTICE_SOURCE = "DUTCH→ENGLISH"
 const val PRACTICE_TARGET = "ENGLISH→DUTCH"
 const val TEST_CHUNK = "TEST"
 // const val STATS = "STATS"
-const val VOCAB = "VOCABULARY"
+const val VOCAB = "VOCABULARY LEARNED"
 const val HOWTO = "HOWTO"
 const val EXTRAS = "EXTRAS"
 val LEARNING_CYCLE = listOf(LEARN, PRACTICE_RECALL, PRACTICE_SOURCE, PRACTICE_TARGET)
@@ -188,10 +182,6 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        /*// get sentences from file
-        val sentencesFile = "${this.filesDir.path}/$SENTENCES_FILENAME"
-        val records = loadSentencesFromFile(sentencesFile)
-        */
         // get sentences from database
         val records = loadSentencesFromDb(this)
         if (records.isEmpty()) throw Exception("MainActivity: No sentences found in db!!!")
@@ -199,7 +189,7 @@ class MainActivity : ComponentActivity() {
         // get vocab from file
         val vocabFile = "${this.filesDir.path}/$VOCAB_FILENAME"
         val vocab = loadVocab(vocabFile).sortedBy { it.word }
-        if (vocab.isEmpty()) throw Exception("MainActivity: Bad Vocab file!!!")
+        if (vocab.isEmpty()) throw Exception("MainActivity: Vocab file is empty!!!")
 
         // main menu
         setContent {
@@ -379,7 +369,7 @@ fun LearnSentences(
                             flashAnswerSentence = flashAnswerSentence, // flash answer briefly
                             showRefreshButton = true,
                             onRefresh = { onRefresh() },
-                            textStyle = textStyle
+                            textStyle = monoTextStyle
                         )
                     }
                     PRACTICE_RECALL -> {
@@ -395,7 +385,7 @@ fun LearnSentences(
                             flashAnswerSentence = false,
                             showRefreshButton = true,
                             onRefresh = { onRefresh() },
-                            textStyle = textStyle
+                            textStyle = monoTextStyle
                         )
                     }
                     PRACTICE_SOURCE -> {
@@ -411,7 +401,7 @@ fun LearnSentences(
                             flashAnswerSentence = false,
                             onRefresh = { onRefresh() },
                             showRefreshButton = false,
-                            textStyle = textStyle
+                            textStyle = monoTextStyle
                         )
                     }
                     PRACTICE_TARGET -> {
@@ -427,7 +417,7 @@ fun LearnSentences(
                             flashAnswerSentence = false,
                             showRefreshButton = false,
                             onRefresh = { onRefresh() },
-                            textStyle = textStyle
+                            textStyle = monoTextStyle
                         )
                     }
                     else -> {
@@ -444,7 +434,7 @@ fun LearnSentences(
                     modifier = Modifier
                         .fillMaxWidth()
                         .focusRequester(focusRequester),
-                    textStyle = textStyle
+                    textStyle = monoTextStyle
                 )
 
                 // check user input, if good→reward + Next sentence button else beep
@@ -542,7 +532,7 @@ fun LearnSentences(
                         onValueChange = {},
                         readOnly = true,
                         modifier = Modifier.fillMaxWidth(),
-                        textStyle = textStyle
+                        textStyle = monoTextStyle
                     )
                 }
 
@@ -672,7 +662,7 @@ fun TestChunk(
                         onValueChange = {},
                         label = { Text("Jumbled Sentence") },
                         readOnly = true,
-                        textStyle = textStyle,
+                        textStyle = monoTextStyle,
                         modifier = Modifier.fillMaxWidth()
                     )
 
@@ -683,7 +673,7 @@ fun TestChunk(
                         value = userInput,
                         onValueChange = { userInput = it },
                         label = { Text("Enter correct sentence") },
-                        textStyle = textStyle,
+                        textStyle = monoTextStyle,
                         modifier = Modifier
                             .fillMaxWidth()
                             .focusRequester(focusRequester)
@@ -715,7 +705,7 @@ fun TestChunk(
                         onValueChange = {},
                         label = { Text("Jumbled Sentence") },
                         readOnly = true,
-                        textStyle = textStyle,
+                        textStyle = monoTextStyle,
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(16.dp))
@@ -724,7 +714,7 @@ fun TestChunk(
                         onValueChange = {},
                         label = { Text("Correct sentence") },
                         readOnly = true,
-                        textStyle = textStyle,
+                        textStyle = monoTextStyle,
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(16.dp))
@@ -733,7 +723,7 @@ fun TestChunk(
                         value = translationInput,
                         onValueChange = { translationInput = it },
                         label = { Text("Enter translation") },
-                        textStyle = textStyle,
+                        textStyle = monoTextStyle,
                         modifier = Modifier
                             .fillMaxWidth()
                             .focusRequester(focusRequester)
@@ -986,7 +976,11 @@ fun VocabScreen(navController: NavController, vocabRecords: List<VocabRecord>) {
             .padding(16.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        Text(text = "Vocabulary Records", style = customTypography) // Use custom typography
+        Text(text = "Vocabulary Records", style = TextStyle(
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            fontStyle = FontStyle.Italic
+        ))
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -1121,7 +1115,35 @@ fun loadSentencesFromDb(context: Context): List<SentenceRecord> {
     val sentenceRecords = mutableListOf<SentenceRecord>()
 
     try {
-        sentenceRecords.addAll(loadSentencesFromDB(db))
+        // Log the start of the database loading process
+        Log.d(DEBUG, "loadSentencesFromDb: loading records from database")
+
+        // Query to select all rows from the 'sentences' table
+        val cursor = db.rawQuery("SELECT id, sourceSentence, gameSentence, translation FROM sentences", null)
+
+        // Check if the query returned any rows
+        if (cursor.moveToFirst()) {
+            do {
+                // Extract the values from the cursor
+                val id = cursor.getInt(cursor.getColumnIndexOrThrow("id"))
+                val sourceSentence = cursor.getString(cursor.getColumnIndexOrThrow("sourceSentence"))
+                val gameSentence = cursor.getString(cursor.getColumnIndexOrThrow("gameSentence"))
+                val translation = cursor.getString(cursor.getColumnIndexOrThrow("translation"))
+
+                // Add a new SentenceRecord to the list
+                sentenceRecords.add(SentenceRecord(id, sourceSentence, gameSentence, translation))
+            } while (cursor.moveToNext()) // Move to the next row
+        } else {
+            Log.e(DEBUG, "loadSentencesFromDb: No rows found in database.")
+        }
+
+        // Close the cursor after the query
+        cursor.close()
+
+        Log.d(DEBUG, "loadSentencesFromDb: loaded ${sentenceRecords.size} rows")
+
+        // Check if no rows were loaded and throw an exception
+        if (sentenceRecords.isEmpty()) throw Exception("loadSentencesFromDb: No rows loaded")
     } catch (e: Exception) {
         Log.e(DEBUG, "Error loading sentences from database: ${e.message}")
         throw Exception("Error loading sentences from database: ${e.message}")
@@ -1129,37 +1151,5 @@ fun loadSentencesFromDb(context: Context): List<SentenceRecord> {
         db.close() // Always close the database
     }
 
-    return sentenceRecords
-}
-
-fun loadSentencesFromDB(db: SQLiteDatabase): List<SentenceRecord> {
-    Log.d(DEBUG, "loadSentencesFromDB: loading records from database")
-
-    val sentenceRecords = mutableListOf<SentenceRecord>()
-
-    // Query to select all rows from the 'sentences' table
-    val cursor = db.rawQuery("SELECT id, sourceSentence, gameSentence, translation FROM sentences", null)
-
-    // Move the cursor to the first row
-    if (cursor.moveToFirst()) {
-        do {
-            // Extract the values from the cursor
-            val id = cursor.getInt(cursor.getColumnIndexOrThrow("id"))
-            val sourceSentence = cursor.getString(cursor.getColumnIndexOrThrow("sourceSentence"))
-            val gameSentence = cursor.getString(cursor.getColumnIndexOrThrow("gameSentence"))
-            val translation = cursor.getString(cursor.getColumnIndexOrThrow("translation"))
-
-            // Add a new SentenceRecord to the list
-            sentenceRecords.add(SentenceRecord(id, sourceSentence, gameSentence, translation))
-        } while (cursor.moveToNext()) // Move to the next row
-    } else {
-        Log.e(DEBUG, "loadSentencesFromDB: No rows found in database.")
-    }
-
-    // Close the cursor after the query
-    cursor.close()
-
-    Log.d(DEBUG, "loadSentencesFromDB: loaded ${sentenceRecords.size} rows")
-    if(sentenceRecords.size < 1) throw Exception("loadSentencesFromDB: NO rows loaded")
     return sentenceRecords
 }
