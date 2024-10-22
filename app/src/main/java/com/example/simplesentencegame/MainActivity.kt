@@ -1,7 +1,6 @@
 @file:OptIn(ExperimentalMaterial3Api::class)
 
 package com.example.simplesentencegame
-import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.media.AudioManager
 import android.media.ToneGenerator
@@ -154,14 +153,13 @@ data class VocabRecord(
     val word: String,
     val wordType: String,
     val translation: String,
-    val article: String = "",
-    val wordsChunkId: Int,
-    val sentencesChunkID: Int
+    val article: String?
 )
 
 @ExperimentalMaterial3Api
 class MainActivity : ComponentActivity() {
     private lateinit var tts: TextToSpeech
+    private lateinit var db: SQLiteDatabase
 
     private fun String.speak(tts: TextToSpeech) {
         tts.speak(this, TextToSpeech.QUEUE_FLUSH, null, null)
@@ -182,14 +180,27 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        // set up database
+        val dbHelper = MyDatabaseHelper(this)
+        val db: SQLiteDatabase = dbHelper.readableDatabase
+
+        // Call the function to list tables
+        val tables = listTables(db)
+        Log.d(DEBUG, "MainActivity: database tables → $tables")
+
         // get sentences from database
-        val records = loadSentencesFromDb(this)
+        val records = loadSentencesFromDb(db)
         if (records.isEmpty()) throw Exception("MainActivity: No sentences found in db!!!")
 
+/*
         // get vocab from file
         val vocabFile = "${this.filesDir.path}/$VOCAB_FILENAME"
         val vocab = loadVocab(vocabFile).sortedBy { it.word }
         if (vocab.isEmpty()) throw Exception("MainActivity: Vocab file is empty!!!")
+*/
+        // get vocab from db
+        val vocab = loadWords(db)
+        if (vocab.isEmpty()) throw Exception("MainActivity: Words table is empty!!!")
 
         // main menu
         setContent {
@@ -271,6 +282,7 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
         tts.stop()
         tts.shutdown()
+        db.close()
     }
 }
 
@@ -624,7 +636,7 @@ fun TestChunk(
     var userInput by remember { mutableStateOf("") }
     var showTickMark by remember { mutableStateOf(false) }
     var showNextSentenceButton by remember { mutableStateOf(false) }
-    var showLottieAnimation by remember { mutableStateOf(false) }
+    val showLottieAnimation by remember { mutableStateOf(false) }
     var score by remember { mutableIntStateOf(0) }
     var correctAnswerGiven by remember { mutableStateOf(false) } // Tracks if correct answer was given
     var translationInput by remember { mutableStateOf("") } // Input for translation
@@ -634,7 +646,6 @@ fun TestChunk(
     val displaySentence = jumbleWords(sourceSentence).lowercase() // jumbled sentence to display
 
     val focusRequester = remember { FocusRequester() }
-    val coroutineScope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
         focusRequester.requestFocus() // Automatically focus input field
@@ -763,10 +774,10 @@ fun TestChunk(
                 // Display progress
                 val progress = score / records.size.toFloat()
                 LinearProgressIndicator(
-                    progress = progress,
+                    progress = { progress },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(25.dp)
+                        .height(25.dp),
                 )
 
                 // Show congratulations animation if all answers are correct
@@ -921,30 +932,6 @@ fun showToastWithBeep(context: MainActivity, message: String, playNiceBeep: Bool
     handler.postDelayed({ toneGen.release() }, 1000)
 }
 
-// load sentences
-/*
-fun loadSentencesFromFile(filePath: String): List<SentenceRecord> {
-    Log.d(DEBUG, "loadSentencesFromFile: filePath=$filePath")
-    val file = File(filePath)
-    return if (file.exists()) {
-        try {
-            val jsonData = file.readText()
-            try {
-                Json.decodeFromString(jsonData)
-            } catch (e: Exception) {
-                Log.d(DEBUG,"loadSentencesFromFile: could not decode jsonData")
-                throw Exception("loadSentencesFromFile: could not decode jsonData", e)
-            }
-        } catch (e: Exception) {
-            Log.d(DEBUG,"loadSentencesFromFile: bad file.readText()")
-            throw Exception("loadSentencesFromFile: bad file.readText()", e)
-        }
-    } else {
-        throw Exception("loadSentencesFromFile: file does not exist")
-    }
-}
-*/
-
 // load vocab
 fun loadVocab(filePath: String): List<VocabRecord> {
     Log.d(DEBUG, "loadVocab: filePath=$filePath")
@@ -989,7 +976,7 @@ fun VocabScreen(navController: NavController, vocabRecords: List<VocabRecord>) {
                 .fillMaxWidth()
                 .padding(vertical = 2.dp)) {
                 Text(text = record.word)
-                if (record.article.isNotEmpty()) {
+                if (record.article.isNullOrEmpty()) {
                     Text(text = ", ${record.article}")
                 }
 /*
@@ -1106,50 +1093,4 @@ fun CustomTopAppBar(
             }
         }
     )
-}
-
-fun loadSentencesFromDb(context: Context): List<SentenceRecord> {
-    val dbHelper = MyDatabaseHelper(context)
-    val db: SQLiteDatabase = dbHelper.readableDatabase
-
-    val sentenceRecords = mutableListOf<SentenceRecord>()
-
-    try {
-        // Log the start of the database loading process
-        Log.d(DEBUG, "loadSentencesFromDb: loading records from database")
-
-        // Query to select all rows from the 'sentences' table
-        val cursor = db.rawQuery("SELECT id, sourceSentence, gameSentence, translation FROM sentences", null)
-
-        // Check if the query returned any rows
-        if (cursor.moveToFirst()) {
-            do {
-                // Extract the values from the cursor
-                val id = cursor.getInt(cursor.getColumnIndexOrThrow("id"))
-                val sourceSentence = cursor.getString(cursor.getColumnIndexOrThrow("sourceSentence"))
-                val gameSentence = cursor.getString(cursor.getColumnIndexOrThrow("gameSentence"))
-                val translation = cursor.getString(cursor.getColumnIndexOrThrow("translation"))
-
-                // Add a new SentenceRecord to the list
-                sentenceRecords.add(SentenceRecord(id, sourceSentence, gameSentence, translation))
-            } while (cursor.moveToNext()) // Move to the next row
-        } else {
-            Log.e(DEBUG, "loadSentencesFromDb: No rows found in database.")
-        }
-
-        // Close the cursor after the query
-        cursor.close()
-
-        Log.d(DEBUG, "loadSentencesFromDb: loaded ${sentenceRecords.size} rows")
-
-        // Check if no rows were loaded and throw an exception
-        if (sentenceRecords.isEmpty()) throw Exception("loadSentencesFromDb: No rows loaded")
-    } catch (e: Exception) {
-        Log.e(DEBUG, "Error loading sentences from database: ${e.message}")
-        throw Exception("Error loading sentences from database: ${e.message}")
-    } finally {
-        db.close() // Always close the database
-    }
-
-    return sentenceRecords
 }
