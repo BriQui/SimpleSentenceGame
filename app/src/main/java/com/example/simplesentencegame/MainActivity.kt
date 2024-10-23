@@ -83,41 +83,16 @@ import com.airbnb.lottie.compose.LottieConstants
 import com.airbnb.lottie.compose.rememberLottieComposition
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.serialization.Serializable
 import java.util.Locale
 
-val monoSpace = FontFamily.Monospace
-val DeepSkyBlue = Color(0xFF00BFFF)
-val LightGreen = Color(0xFF90EE90)
-val monoTextStyle = TextStyle(
-    fontSize = 16.sp,
-    fontWeight = FontWeight.Normal,
-    fontFamily = monoSpace // so sentences align on screen for user
+// data classes populated by SQL are in SqlStuff.kt
+// e.g. FlashCard, VocabCard.
+
+data class ButtonConfig(
+    val text: String,
+    val onClick: () -> Unit,
+    val color: Color
 )
-
-const val DEBUG = "BQ_DEBUG"
-
-// const val SENTENCES_FILENAME = "sentenceDatabase.json"
-// const val VOCAB_FILENAME = "vocab.json"
-// const val MAX_SCORE = 10 // # correct answers to gen animation
-const val TIME_FACTOR_PER_CHAR = 60
-// const val BUTTON_HEIGHT = 35
-// val tonedDownButtonColor = Color.Blue.copy(alpha = 0.7f)
-const val LOTTIE_SIZE = 400
-const val HOME = "HOME"
-const val LEARN = "LEARN"
-const val PRACTICE_RECALL = "PRACTICE RECALL"
-const val PRACTICE_SOURCE = "DUTCH→ENGLISH"
-const val PRACTICE_TARGET = "ENGLISH→DUTCH"
-const val TEST_CHUNK = "TEST"
-// const val STATS = "STATS"
-const val VOCAB = "VOCABULARY LEARNED"
-const val HOWTO = "HOWTO"
-const val EXTRAS = "EXTRAS"
-val LEARNING_CYCLE = listOf(LEARN, PRACTICE_RECALL, PRACTICE_SOURCE, PRACTICE_TARGET)
-val NUMBER_OF_LEARNING_OPTIONS = LEARNING_CYCLE.size
-
-data class ButtonConfig(val text: String, val onClick: () -> Unit)
 
 /*
 enum class Article(val value: Int) {
@@ -137,22 +112,6 @@ fun getWordTypeAsString(value: Int): String? {
     return WordType.fromValue(value)?.name
 }
 */
-
-@Serializable
-data class SentenceRecord(
-    val id: Int,
-    val sourceSentence: String,
-    val gameSentence: String,
-    val translation: String
-)
-
-@Serializable
-data class VocabRecord(
-    val word: String,
-    val wordType: String,
-    val translation: String,
-    val article: String?
-)
 
 @ExperimentalMaterial3Api
 class MainActivity : ComponentActivity() {
@@ -218,25 +177,25 @@ class MainActivity : ComponentActivity() {
                             // App name header and app image
                             HeaderWithImage(stringResource(id = R.string.app_name), true)
 
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
 
                             val buttonConfigurations = listOf(
-                                ButtonConfig(LEARN) { navController.navigate(LEARN) },
-                                ButtonConfig(PRACTICE_RECALL) { navController.navigate(PRACTICE_RECALL) },
-                                ButtonConfig(PRACTICE_SOURCE) { navController.navigate(PRACTICE_SOURCE) },
-                                ButtonConfig(PRACTICE_TARGET) { navController.navigate(PRACTICE_TARGET) },
-                                ButtonConfig(TEST_CHUNK) { navController.navigate(TEST_CHUNK) },
-                                ButtonConfig(VOCAB) { navController.navigate(VOCAB) },
-                                ButtonConfig(EXTRAS) { navController.navigate(EXTRAS) },
-                                ButtonConfig(HOWTO) { navController.navigate(HOWTO) }
+                                ButtonConfig(LEARN, { navController.navigate(LEARN) }, LightGreen),
+                                ButtonConfig(PRACTICE_RECALL, { navController.navigate(PRACTICE_RECALL) }, LightGreen),
+                                ButtonConfig(PRACTICE_SOURCE, { navController.navigate(PRACTICE_SOURCE) }, LightGreen),
+                                ButtonConfig(PRACTICE_TARGET, { navController.navigate(PRACTICE_TARGET) }, LightGreen),
+                                ButtonConfig(TEST_CHUNK, { navController.navigate(TEST_CHUNK) }, LightGreen),
+                                ButtonConfig(VOCAB, { navController.navigate(VOCAB) }, DeepSkyBlue),
+                                ButtonConfig(EXTRAS, { navController.navigate(EXTRAS) }, DeepSkyBlue),
+                                ButtonConfig(HOWTO, { navController.navigate(HOWTO) }, DeepSkyBlue)
                             )
 
                             buttonConfigurations.forEach { buttonConfig ->
-                                //Spacer(modifier = Modifier.height(6.dp))
-                                LearnButton(
+                                MenuButton(
                                     onClick = buttonConfig.onClick,
                                     text = buttonConfig.text,
-                                    buttonWidth = buttonWidth
+                                    buttonWidth = buttonWidth,
+                                    buttonColor = buttonConfig.color
                                 )
                             }
                         }
@@ -289,7 +248,7 @@ class MainActivity : ComponentActivity() {
 fun LearnSentences(
     learningOption: String,
     navController: NavController,
-    records: List<SentenceRecord>,
+    records: List<FlashCard>,
     context: MainActivity,
     speak: (String) -> Unit
 ) {
@@ -625,7 +584,7 @@ fun LearnSentences(
 fun TestChunk(
     learningOption: String,
     navController: NavController,
-    records: List<SentenceRecord>,
+    records: List<FlashCard>,
     context: MainActivity,
     speak: (String) -> Unit
 ) {
@@ -809,7 +768,7 @@ fun TestChunk(
 }
 
 @Composable
-fun LearnButton(
+fun MenuButton(
     onClick: () -> Unit,
     text: String,
     buttonWidth: Dp = 100.dp, // Default button width
@@ -932,7 +891,7 @@ fun showToastWithBeep(context: MainActivity, message: String, playNiceBeep: Bool
 
 // load vocab
 @Composable
-fun VocabScreen(navController: NavController, vocabRecords: List<VocabRecord>) {
+fun VocabScreen(navController: NavController, vocabCards: List<VocabCard>) {
     // sort list alphabetically
     Column(
         modifier = Modifier
@@ -947,7 +906,7 @@ fun VocabScreen(navController: NavController, vocabRecords: List<VocabRecord>) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        vocabRecords.forEach { record ->
+        vocabCards.forEach { record ->
             Row(modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 2.dp)) {
