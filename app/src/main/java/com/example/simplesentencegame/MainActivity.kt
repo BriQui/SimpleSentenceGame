@@ -66,7 +66,6 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -87,12 +86,6 @@ import java.util.Locale
 
 // data classes populated by SQL are in SqlStuff.kt
 // e.g. FlashCard, VocabCard.
-
-data class ButtonConfig(
-    val text: String,
-    val onClick: () -> Unit,
-    val color: Color
-)
 
 /*
 enum class Article(val value: Int) {
@@ -762,105 +755,6 @@ fun TestChunk(
                         Text("Next Sentence")
                     }
                 }
-            }
-        }
-    }
-}
-
-@Composable
-fun MenuButton(
-    onClick: () -> Unit,
-    text: String,
-    buttonWidth: Dp = 100.dp, // Default button width
-    buttonColor: Color = DeepSkyBlue,
-    textColor: Color = Color.Black
-) {
-    Button(
-        onClick = onClick,
-        modifier = Modifier.width(buttonWidth),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = buttonColor,
-            contentColor = textColor
-        )
-    ) {
-        Text(text = text, fontSize = 16.sp)
-    }
-}
-
-@Composable
-fun SentenceDisplay(
-    testSentence: String,
-    answerSentence: String,
-    flashAnswerSentence: Boolean,
-    showRefreshButton: Boolean,
-    onRefresh: () -> Unit,
-    textStyle: TextStyle
-) {
-    // show test sentence
-    Box(modifier = Modifier.fillMaxWidth()) {
-        OutlinedTextField(
-            // Learn option only, briefly show answer sentence
-            value = if (flashAnswerSentence) answerSentence else testSentence,
-            onValueChange = {},
-            readOnly = true,
-            modifier = Modifier
-                .padding(top = 25.dp)
-                .fillMaxWidth(),
-            textStyle = textStyle,
-            trailingIcon = {
-                // Show refresh icon only if the refresh button is enabled
-                if (showRefreshButton) {
-                    IconButton(onClick = { onRefresh() }) {
-                        Icon(
-                            imageVector = Icons.Filled.Refresh,
-                            contentDescription = "Refresh",
-                            tint = Color.Black
-                        )
-                    }
-                }
-            }
-        )
-    }
-}
-
-@Composable
-fun HeaderWithImage(headerText: String, showSecondaryInfo: Boolean) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        // App name header
-        Text(
-            text = headerText,
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
-            fontStyle = FontStyle.Italic,
-            color = DeepSkyBlue,
-            modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-        )
-        // Image below the header
-        if (showSecondaryInfo) {
-            Text(
-                text = "Goal → 1,000 words",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                fontStyle = FontStyle.Italic,
-                color = Color.Green,
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(180.dp)
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.netherlands),
-                    contentDescription = "App Icon",
-                    modifier = Modifier.fillMaxSize()
-                )
             }
         }
     }
