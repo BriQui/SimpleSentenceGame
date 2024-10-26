@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,21 +28,18 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -53,6 +49,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -69,7 +66,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -84,8 +80,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Locale
 
-// data classes populated by SQL are in SqlStuff.kt
+// Data classes populated by SQL are in SqlStuff.kt
 // e.g. FlashCard, VocabCard.
+// Constants are in Constants.kt
+// GuiStuff.kt contains simple composables, etc.
 
 /*
 enum class Article(val value: Int) {
@@ -117,7 +115,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Log.d(DEBUG, "MainActivity: ok.")
+        Log.d(DEBUG, "MainActivity: onCreate: ok.")
 
         // Initialize TextToSpeech
         tts = TextToSpeech(this) { status ->
@@ -136,18 +134,15 @@ class MainActivity : ComponentActivity() {
 
         // Call the function to list tables
         val tables = listTables(db)
-        Log.d(DEBUG, "MainActivity: database tables → $tables")
+        Log.d(DEBUG, "MainActivity: db tables → $tables")
+
+        // get previous session details
+        var (currentChunkId, flashCardPosition) = getLastSessionInfo(db)
 
         // get sentences from database
-        val records = loadSentencesFromDb(db)
+        var records = loadChunkFromDb(db, currentChunkId)
         if (records.isEmpty()) throw Exception("MainActivity: No sentences found in db!!!")
 
-/*
-        // get vocab from file
-        val vocabFile = "${this.filesDir.path}/$VOCAB_FILENAME"
-        val vocab = loadVocab(vocabFile).sortedBy { it.word }
-        if (vocab.isEmpty()) throw Exception("MainActivity: Vocab file is empty!!!")
-*/
         // get vocab from db
         val vocab = loadWords(db)
         if (vocab.isEmpty()) throw Exception("MainActivity: Words table is empty!!!")
@@ -161,20 +156,20 @@ class MainActivity : ComponentActivity() {
                     BoxWithConstraints(
                         modifier = Modifier.padding(16.dp)
                     ) {
-                        val buttonWidth = maxWidth * 2 / 3 // Half of the screen width
+                        val buttonWidth = maxWidth * 2 / 3
 
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             // App name header and app image
-                            HeaderWithImage(stringResource(id = R.string.app_name), true)
+                            HeaderWithImage(stringResource(id = R.string.app_name), DeepSkyBlue, true)
 
-                            Spacer(modifier = Modifier.height(12.dp))
+                            SpacerHeight(dp = 12)
 
                             val buttonConfigurations = listOf(
+                                ButtonConfig(REVIEW, { navController.navigate(REVIEW) }, DeepSkyBlue),
                                 ButtonConfig(LEARN, { navController.navigate(LEARN) }, LightGreen),
-                                ButtonConfig(PRACTICE_RECALL, { navController.navigate(PRACTICE_RECALL) }, LightGreen),
                                 ButtonConfig(PRACTICE_SOURCE, { navController.navigate(PRACTICE_SOURCE) }, LightGreen),
                                 ButtonConfig(PRACTICE_TARGET, { navController.navigate(PRACTICE_TARGET) }, LightGreen),
                                 ButtonConfig(TEST_CHUNK, { navController.navigate(TEST_CHUNK) }, LightGreen),
@@ -184,22 +179,24 @@ class MainActivity : ComponentActivity() {
                             )
 
                             buttonConfigurations.forEach { buttonConfig ->
-                                MenuButton(
-                                    onClick = buttonConfig.onClick,
-                                    text = buttonConfig.text,
-                                    buttonWidth = buttonWidth,
-                                    buttonColor = buttonConfig.color
-                                )
+                                if (buttonConfig.text != REVIEW || currentChunkId > 0) {
+                                    MenuButton(
+                                        onClick = buttonConfig.onClick,
+                                        text = buttonConfig.text,
+                                        buttonWidth = buttonWidth,
+                                        buttonColor = buttonConfig.color
+                                    )
+                                }
                             }
                         }
                     }
                 }
-                composable(LEARN) {
-                    LearnSentences(LEARN,
+                composable(REVIEW) {
+                    LearnSentences(REVIEW,
                         navController, records, this@MainActivity) { text -> text.speak(tts) }
                 }
-                composable(PRACTICE_RECALL) {
-                    LearnSentences(PRACTICE_RECALL,
+                composable(LEARN) {
+                    LearnSentences(LEARN,
                         navController, records, this@MainActivity) { text -> text.speak(tts) }
                 }
                 composable(PRACTICE_SOURCE) {
@@ -211,8 +208,15 @@ class MainActivity : ComponentActivity() {
                         navController, records, this@MainActivity) { text -> text.speak(tts) }
                 }
                 composable(TEST_CHUNK) {
-                    TestChunk(TEST_CHUNK,
-                        navController, records, this@MainActivity) { text -> text.speak(tts) }
+                    TestChunk(
+                        learningOption = TEST_CHUNK,
+                        navController = navController,
+                        records = records,
+                        chunkId = currentChunkId
+                    ) { nextChunkId ->
+                        currentChunkId = nextChunkId
+                        records = loadChunkFromDb(db, currentChunkId)
+                    }
                 }
                 composable(VOCAB) {
                     VocabScreen(navController, vocab)
@@ -274,14 +278,6 @@ fun LearnSentences(
     val timeFactorPerChar = TIME_FACTOR_PER_CHAR // how long to display sentence, i.e. delay.
     val calculatedDelay = sourceSentence.length.times(timeFactorPerChar)
 
-/*
-    val textStyle = TextStyle(
-        fontSize = 16.sp,
-        fontWeight = FontWeight.Normal,
-        fontFamily = monoSpace // so sentences align on screen for user
-    )
-*/
-
     val focusRequester = remember { FocusRequester() }
 
     LaunchedEffect(gameSentence, refreshButton) {
@@ -334,8 +330,8 @@ fun LearnSentences(
                             textStyle = monoTextStyle
                         )
                     }
-                    PRACTICE_RECALL -> {
-                        HeaderWithImage(headerText = PRACTICE_RECALL, showSecondaryInfo = false)
+                    REVIEW -> {
+                        HeaderWithImage(headerText = REVIEW, showSecondaryInfo = false)
                         answerSentence = sourceSentence
                         if (!spoken) {
                             speak(sourceSentence)
@@ -400,13 +396,13 @@ fun LearnSentences(
                 )
 
                 // check user input, if good→reward + Next sentence button else beep
-                Spacer(modifier = Modifier.height(2.dp))
+                SpacerHeight(dp = 2)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
                 ) {
                     if (showNextSentenceButton) {
-                        Button(
+                        StandardButton(
                             onClick = {
                                 // Move to the next sentence
                                 currentRecordIndex = (currentRecordIndex + 1) % records.size
@@ -415,42 +411,20 @@ fun LearnSentences(
                                 showTickMark = false
                                 showNextSentenceButton = false // Hide "Next sentence" button
                             },
-                            modifier = Modifier.height(28.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color.Green,
-                                contentColor = Color.Black
-                            ),
-                            shape = RoundedCornerShape(4.dp),
-                            contentPadding = PaddingValues(4.dp)
-                        ) {
-                            Text(
-                                text = "Next sentence",
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
+                            text = "Next sentence"
+                        )
                         if (showGoToNextOptionButton) {
-                            Spacer(modifier = Modifier.width(8.dp)) // Optional spacing between buttons
-                            Button(
+                            SpacerHeight(dp = 8) // Spacing between buttons
+                            StandardButton(
                                 onClick = {
                                     navController.navigate(nextLearningOption) // Navigate to the next learning option
                                 },
-                                modifier = Modifier.height(28.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = DeepSkyBlue,
-                                    contentColor = Color.Black
-                                ),
-                                shape = RoundedCornerShape(4.dp),
-                                contentPadding = PaddingValues(4.dp)
-                            ) {
-                                Text(
-                                    text = "Go to $nextLearningOption",
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                            }
+                                text = "Go to $nextLearningOption"
+                            )
                         }
 
                     } else {
-                        Button(
+                        StandardButton(
                             onClick = {
                                 // if (userInput.trim() == answerSentence) {
                                 // ignore whitespace and ending period
@@ -470,25 +444,14 @@ fun LearnSentences(
                                     showToastWithBeep(context, "Try again!", playNiceBeep = false)
                                 }
                             },
-                            modifier = Modifier.height(28.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = DeepSkyBlue,
-                                contentColor = Color.Black
-                            ),
-                            shape = RoundedCornerShape(4.dp),
-                            contentPadding = PaddingValues(4.dp)
-                        ) {
-                            Text(
-                                text = "Submit",
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
+                            text = "Submit"
+                        )
                     }
                 }
                 // show translation if applicable for learning option
                 if (learningOption == LEARN
-                    || learningOption == PRACTICE_RECALL) {
-                    Spacer(modifier = Modifier.height(16.dp))
+                    || learningOption == REVIEW) {
+                    SpacerHeight()
                     OutlinedTextField(
                         value = translation,
                         onValueChange = {},
@@ -498,7 +461,7 @@ fun LearnSentences(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                SpacerHeight()
 //                val progress = score / MAX_SCORE.toFloat()
                 val progress = score / records.size.toFloat()
                 // Text(text = "${(progress * 100).toInt()}%")
@@ -522,7 +485,7 @@ fun LearnSentences(
                         modifier = Modifier.align(Alignment.Center))
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                SpacerHeight()
                 if (showTickMark) {
                     Image(
                         painter = painterResource(id = R.drawable.tick_mark),
@@ -578,27 +541,34 @@ fun TestChunk(
     learningOption: String,
     navController: NavController,
     records: List<FlashCard>,
-    context: MainActivity,
-    speak: (String) -> Unit
+    chunkId: Int,
+    loadNextChunk: (Int) -> Unit // Callback for loading the next chunk
 ) {
     // State variables
-    var currentRecordIndex by remember { mutableIntStateOf(0) }
-    var userInput by remember { mutableStateOf("") }
-    var showTickMark by remember { mutableStateOf(false) }
-    var showNextSentenceButton by remember { mutableStateOf(false) }
-    val showLottieAnimation by remember { mutableStateOf(false) }
-    var score by remember { mutableIntStateOf(0) }
-    var correctAnswerGiven by remember { mutableStateOf(false) } // Tracks if correct answer was given
-    var translationInput by remember { mutableStateOf("") } // Input for translation
+    val focusRequesterJumbled = remember { FocusRequester() }
+    val focusRequesterTranslation = remember { FocusRequester() }
 
-    val currentRecord = if (records.isNotEmpty()) records[currentRecordIndex] else null
-    val sourceSentence = currentRecord!!.sourceSentence // original sentence
-    val displaySentence = jumbleWords(sourceSentence).lowercase() // jumbled sentence to display
+    var currentRecordIndex by remember { mutableStateOf(0) }
+    var currentQuestion by remember { mutableStateOf(0) } // 0 = jumbled sentence, 1 = source sentence
+    var userInputJumbled by remember { mutableStateOf("") }
+    var userInputTranslation by remember { mutableStateOf("") }
+    var totalScore by remember { mutableStateOf(0f) } // Total score for the test
+    var showResults by remember { mutableStateOf(false) }
 
-    val focusRequester = remember { FocusRequester() }
+    // To track questions and user answers
+    val questionAnswerList = remember { mutableStateListOf<Pair<String, String>>() }
 
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus() // Automatically focus input field
+    val currentRecord = records.getOrNull(currentRecordIndex)
+    val sourceSentence = currentRecord?.sourceSentence ?: ""
+    val translation = currentRecord?.translation ?: ""
+    val jumbledSentence = jumbleWords(sourceSentence).lowercase()
+
+    // Focus request based on the current question
+    LaunchedEffect(currentQuestion) {
+        when (currentQuestion) {
+            0 -> focusRequesterJumbled.requestFocus()
+            1 -> focusRequesterTranslation.requestFocus()
+        }
     }
 
     Scaffold(
@@ -607,152 +577,162 @@ fun TestChunk(
         }
     ) { paddingValues ->
         Box(modifier = Modifier.padding(paddingValues)) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Top
-            ) {
-                HeaderWithImage(headerText = TEST_CHUNK, showSecondaryInfo = false)
+            HeaderWithImage(headerText = TEST_CHUNK, showSecondaryInfo = false)
 
-                if (!correctAnswerGiven) {
-                    // Display the jumbled sentence
-                    OutlinedTextField(
-                        value = displaySentence,
-                        onValueChange = {},
-                        label = { Text("Jumbled Sentence") },
-                        readOnly = true,
-                        textStyle = monoTextStyle,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Input field for user's answer
-                    OutlinedTextField(
-                        value = userInput,
-                        onValueChange = { userInput = it },
-                        label = { Text("Enter correct sentence") },
-                        textStyle = monoTextStyle,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .focusRequester(focusRequester)
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Submit button to check user answer
-                    Button(
-                        onClick = {
-                            if (userInput.trim().trim('.').equals(sourceSentence.trim('.'), ignoreCase = true)) {
-                                // Correct answer
-                                showTickMark = true
-                                correctAnswerGiven = true // Set flag to indicate correct answer given
-                                speak(sourceSentence) // Speak the correct sentence
-                                score += 1
-                            } else {
-                                // Incorrect answer
-                                showToastWithBeep(context, "Try again!", playNiceBeep = false)
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Submit")
-                    }
+            if (showResults) {
+                // Calculate the total possible score correctly
+                val maxScore = records.size * 2 // Each record has 2 questions
+                val percentage = (totalScore / maxScore) * 100
+                val resultText = if (percentage >= 80) {
+                    "Well done, you scored $totalScore out of $maxScore (${percentage.toInt()}%)"
                 } else {
-                    OutlinedTextField(
-                        value = displaySentence,
-                        onValueChange = {},
-                        label = { Text("Jumbled Sentence") },
-                        readOnly = true,
-                        textStyle = monoTextStyle,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    OutlinedTextField(
-                        value = sourceSentence,
-                        onValueChange = {},
-                        label = { Text("Correct sentence") },
-                        readOnly = true,
-                        textStyle = monoTextStyle,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    // Input field for user's translation
-                    OutlinedTextField(
-                        value = translationInput,
-                        onValueChange = { translationInput = it },
-                        label = { Text("Enter translation") },
-                        textStyle = monoTextStyle,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .focusRequester(focusRequester)
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    // Submit button to check translation
-                    Button(
-                        onClick = {
-                            if (translationInput.isGoodMatch(currentRecord.translation)) {
-                                // Correct translation
-                                showNextSentenceButton = true
-                                speak(currentRecord.sourceSentence)
-                            } else {
-                                // Incorrect translation
-                                showToastWithBeep(context, "Translation is incorrect", playNiceBeep = false)
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Submit")
-                    }
+                    "More practice needed! You scored $totalScore out of $maxScore (${percentage.toInt()}%)"
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Show tick mark for correct sentence
-                if (showTickMark && !correctAnswerGiven) {
-                    Image(
-                        painter = painterResource(id = R.drawable.tick_mark),
-                        contentDescription = "Correct Answer",
-                        modifier = Modifier.size(80.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Display progress
-                val progress = score / records.size.toFloat()
-                LinearProgressIndicator(
-                    progress = { progress },
+                Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(25.dp),
-                )
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(resultText)
 
-                // Show congratulations animation if all answers are correct
-                if (showLottieAnimation) {
-                    LottieAnimation(
-                        composition = rememberLottieComposition(LottieCompositionSpec.Asset("well_done.json")).value,
-                        iterations = LottieConstants.IterateForever,
-                        modifier = Modifier.size(200.dp)
+                    // Display questions and user answers side by side
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.Start
+                    ) {
+                        items(questionAnswerList) { (question, answer) ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = "Q: $question",
+                                    modifier = Modifier.weight(0.5f)
+                                )
+                                Text(
+                                    text = "A: $answer",
+                                    modifier = Modifier.weight(0.5f)
+                                )
+                            }
+                        }
+                    }
+
+                    SpacerHeight()
+                    // Action buttons
+                    StandardButton(
+                        onClick = {
+                            loadNextChunk(chunkId + 1) // Load the next chunk
+                            navController.navigate(LEARN)
+                        },
+                        text = "Learn new vocabulary"
+                    )
+                    SpacerHeight()
+                    StandardButton(
+                        onClick = {
+                            currentRecordIndex = 0
+                            currentQuestion = 0
+                            questionAnswerList.clear()
+                            totalScore = 0f
+                            showResults = false
+                            navController.navigate(LEARN)
+                        },
+                        text = "Keep practicing current vocabulary"
                     )
                 }
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Top
+                ) {
 
-                // Show button to move to next sentence
-                if (showNextSentenceButton) {
-                    Button(
-                        onClick = {
-                            currentRecordIndex = (currentRecordIndex + 1) % records.size
-                            userInput = ""
-                            translationInput = ""
-                            correctAnswerGiven = false
-                            showTickMark = false
-                            showNextSentenceButton = false
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Next Sentence")
+                    SpacerHeight(dp = 20)
+                    // First question: jumbled sentence
+                    if (currentQuestion == 0) {
+                        OutlinedTextField(
+                            value = jumbledSentence,
+                            onValueChange = {},
+                            label = { Text("Jumbled Sentence") },
+                            readOnly = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            textStyle = monoTextStyle
+                        )
+
+                        SpacerHeight(dp = 8)
+
+                        OutlinedTextField(
+                            value = userInputJumbled,
+                            onValueChange = { userInputJumbled = it },
+                            label = { Text("Enter correct sentence") },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusRequester(focusRequesterJumbled),
+                            textStyle = monoTextStyle
+                        )
+
+                        SpacerHeight(dp = 8)
+                        StandardButton(
+                            onClick = {
+                                val isCorrect = userInputJumbled.isGoodMatch(sourceSentence)
+                                if (isCorrect) totalScore += 1f
+
+                                // Add to question/answer list
+                                questionAnswerList.add(Pair("Jumbled: $jumbledSentence", userInputJumbled))
+
+                                userInputJumbled = ""
+                                currentQuestion = 1 // Move to the next question
+                            },
+                            text = "Submit"
+                        )
+                    }
+
+                    // Second question: source sentence
+                    if (currentQuestion == 1) {
+                        OutlinedTextField(
+                            value = sourceSentence,
+                            onValueChange = {},
+                            label = { Text("Source Sentence") },
+                            readOnly = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        SpacerHeight()
+
+                        OutlinedTextField(
+                            value = userInputTranslation,
+                            onValueChange = { userInputTranslation = it },
+                            label = { Text("Translate the sentence") },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusRequester(focusRequesterTranslation)
+                        )
+
+                        SpacerHeight(dp = 8)
+                        StandardButton(
+                            onClick = {
+                                val isCorrect = userInputTranslation.isGoodMatch(translation)
+                                if (isCorrect) totalScore += 1f
+
+                                // Add to question/answer list
+                                questionAnswerList.add(Pair("Source: $sourceSentence", userInputTranslation))
+
+                                if (currentRecordIndex + 1 < records.size) {
+                                    // Move to the next record
+                                    currentRecordIndex++
+                                    currentQuestion = 0
+                                    userInputTranslation = ""
+                                } else {
+                                    // Show results if it's the last record
+                                    showResults = true
+                                }
+                            },
+                            text = "Submit"
+                        )
                     }
                 }
             }
@@ -783,7 +763,6 @@ fun showToastWithBeep(context: MainActivity, message: String, playNiceBeep: Bool
     handler.postDelayed({ toneGen.release() }, 1000)
 }
 
-// load vocab
 @Composable
 fun VocabScreen(navController: NavController, vocabCards: List<VocabCard>) {
     // sort list alphabetically
@@ -798,7 +777,7 @@ fun VocabScreen(navController: NavController, vocabCards: List<VocabCard>) {
             fontStyle = FontStyle.Italic
         ))
 
-        Spacer(modifier = Modifier.height(16.dp))
+        SpacerHeight()
 
         vocabCards.forEach { record ->
             Row(modifier = Modifier
@@ -816,10 +795,11 @@ fun VocabScreen(navController: NavController, vocabCards: List<VocabCard>) {
             // Divider() // Optional divider between records
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-        Button(onClick = { navController.popBackStack() }) {
-            Text("Back to Home")
-        }
+        SpacerHeight()
+        StandardButton(
+            onClick = { navController.popBackStack() },
+            text = "Back to Home"
+        )
     }
 }
 
@@ -829,10 +809,11 @@ fun ExtrasScreen(navController: NavController) {
         // The rest of your screen content
         Column(modifier = Modifier.padding(16.dp)) {
             Text(text = "Placeholder for Extras Screen")
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(onClick = { navController.popBackStack() }) {
-                Text("Back to Home")
-            }
+            SpacerHeight()
+            StandardButton(
+                onClick = { navController.popBackStack() },
+                text = "Back to Home"
+            )
         }
     }
 }
@@ -872,15 +853,13 @@ fun HowToScreen(navController: NavController) {
         }
 
         // Spacer to provide space between Box and Button
-        Spacer(modifier = Modifier.height(16.dp))
+        SpacerHeight()
 
         // Button aligned at the bottom of the screen
-        Button(
+        StandardButton(
             onClick = { navController.popBackStack() },
-            modifier = Modifier.align(Alignment.CenterHorizontally)
-        ) {
-            Text("Back to Home")
-        }
+            text = "Back to Home"
+        )
     }
 }
 

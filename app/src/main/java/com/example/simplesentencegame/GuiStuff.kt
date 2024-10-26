@@ -3,12 +3,14 @@ package com.example.simplesentencegame
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
@@ -23,11 +25,27 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
+// val tonedDownButtonColor = Color.Blue.copy(alpha = 0.7f)
+val monoSpace = FontFamily.Monospace
+val DeepSkyBlue = Color(0xFF00BFFF)
+val LightGreen = Color(0xFF90EE90)
+val monoTextStyle = TextStyle(
+    fontSize = 16.sp,
+    fontWeight = FontWeight.Normal,
+    fontFamily = monoSpace // so sentences align on screen for user
+)
+
+@Composable
+fun SpacerHeight(dp: Int = 16) {
+    Spacer(modifier = Modifier.height(dp.dp))
+}
 
 data class ButtonConfig(
     val text: String,
@@ -50,6 +68,26 @@ fun MenuButton(
             containerColor = buttonColor,
             contentColor = textColor
         )
+    ) {
+        Text(text = text, fontSize = 16.sp)
+    }
+}
+@Composable
+fun StandardButton(
+    onClick: () -> Unit,
+    text: String,
+    buttonColor: Color = DeepSkyBlue,
+    textColor: Color = Color.Black
+) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier.height(28.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = buttonColor,
+            contentColor = textColor
+        ),
+        shape = RoundedCornerShape(6.dp),
+        contentPadding = PaddingValues(4.dp)
     ) {
         Text(text = text, fontSize = 16.sp)
     }
@@ -90,8 +128,13 @@ fun SentenceDisplay(
         )
     }
 }
+
 @Composable
-fun HeaderWithImage(headerText: String, showSecondaryInfo: Boolean) {
+fun HeaderWithImage(
+    headerText: String,
+    headerTextColor: Color = LightGreen,
+    showSecondaryInfo: Boolean = false
+) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.fillMaxWidth()
@@ -102,7 +145,7 @@ fun HeaderWithImage(headerText: String, showSecondaryInfo: Boolean) {
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
             fontStyle = FontStyle.Italic,
-            color = DeepSkyBlue,
+            color = headerTextColor,
             modifier = Modifier
                 .align(Alignment.CenterHorizontally)
         )
