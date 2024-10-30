@@ -192,8 +192,11 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 composable(REVIEW) {
+                    // shift+F6 replace "records" with "cards"
+                    // replace records with all chunks with chunkId > 0
                     LearnSentences(REVIEW,
                         navController, records, this@MainActivity) { text -> text.speak(tts) }
+                    // update db with new priority, attemptCount, etc.
                 }
                 composable(LEARN) {
                     LearnSentences(LEARN,
@@ -576,163 +579,180 @@ fun TestChunk(
             CustomTopAppBar(navController = navController, learningOption = learningOption)
         }
     ) { paddingValues ->
-        Box(modifier = Modifier.padding(paddingValues)) {
-            HeaderWithImage(headerText = TEST_CHUNK, showSecondaryInfo = false)
+        Box(modifier = Modifier
+            .padding(paddingValues)
+            .fillMaxSize()
+        ) {
+            Column (
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp)
+            ) {
+                SpacerHeight()
+                HeaderWithImage(headerText = TEST_CHUNK, showSecondaryInfo = false)
 
-            if (showResults) {
-                // Calculate the total possible score correctly
-                val maxScore = records.size * 2 // Each record has 2 questions
-                val percentage = (totalScore / maxScore) * 100
-                val resultText = if (percentage >= 80) {
-                    "Well done, you scored $totalScore out of $maxScore (${percentage.toInt()}%)"
-                } else {
-                    "More practice needed! You scored $totalScore out of $maxScore (${percentage.toInt()}%)"
-                }
+                if (showResults) {
+                    // Calculate the total possible score correctly
+                    val maxScore = records.size * 2 // Each record has 2 questions
+                    val percentage = (totalScore / maxScore) * 100
+                    val resultText = if (percentage >= 80) {
+                        "Well done, you scored $totalScore out of $maxScore (${percentage.toInt()}%)"
+                    } else {
+                        "More practice needed! You scored $totalScore out of $maxScore (${percentage.toInt()}%)"
+                    }
 
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(resultText)
-
-                    // Display questions and user answers side by side
-                    LazyColumn(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.Start
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
                     ) {
-                        items(questionAnswerList) { (question, answer) ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                            ) {
-                                Text(
-                                    text = "Q: $question",
-                                    modifier = Modifier.weight(0.5f)
-                                )
-                                Text(
-                                    text = "A: $answer",
-                                    modifier = Modifier.weight(0.5f)
-                                )
+                        Text(resultText)
+
+                        // Display questions and user answers side by side
+                        LazyColumn(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.Start
+                        ) {
+                            items(questionAnswerList) { (question, answer) ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = "Q: $question",
+                                        modifier = Modifier.weight(0.5f)
+                                    )
+                                    Text(
+                                        text = "A: $answer",
+                                        modifier = Modifier.weight(0.5f)
+                                    )
+                                }
                             }
                         }
-                    }
-
-                    SpacerHeight()
-                    // Action buttons
-                    StandardButton(
-                        onClick = {
-                            loadNextChunk(chunkId + 1) // Load the next chunk
-                            navController.navigate(LEARN)
-                        },
-                        text = "Learn new vocabulary"
-                    )
-                    SpacerHeight()
-                    StandardButton(
-                        onClick = {
-                            currentRecordIndex = 0
-                            currentQuestion = 0
-                            questionAnswerList.clear()
-                            totalScore = 0f
-                            showResults = false
-                            navController.navigate(LEARN)
-                        },
-                        text = "Keep practicing current vocabulary"
-                    )
-                }
-            } else {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Top
-                ) {
-
-                    SpacerHeight(dp = 20)
-                    // First question: jumbled sentence
-                    if (currentQuestion == 0) {
-                        OutlinedTextField(
-                            value = jumbledSentence,
-                            onValueChange = {},
-                            label = { Text("Jumbled Sentence") },
-                            readOnly = true,
-                            modifier = Modifier.fillMaxWidth(),
-                            textStyle = monoTextStyle
-                        )
-
-                        SpacerHeight(dp = 8)
-
-                        OutlinedTextField(
-                            value = userInputJumbled,
-                            onValueChange = { userInputJumbled = it },
-                            label = { Text("Enter correct sentence") },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .focusRequester(focusRequesterJumbled),
-                            textStyle = monoTextStyle
-                        )
-
-                        SpacerHeight(dp = 8)
-                        StandardButton(
-                            onClick = {
-                                val isCorrect = userInputJumbled.isGoodMatch(sourceSentence)
-                                if (isCorrect) totalScore += 1f
-
-                                // Add to question/answer list
-                                questionAnswerList.add(Pair("Jumbled: $jumbledSentence", userInputJumbled))
-
-                                userInputJumbled = ""
-                                currentQuestion = 1 // Move to the next question
-                            },
-                            text = "Submit"
-                        )
-                    }
-
-                    // Second question: source sentence
-                    if (currentQuestion == 1) {
-                        OutlinedTextField(
-                            value = sourceSentence,
-                            onValueChange = {},
-                            label = { Text("Source Sentence") },
-                            readOnly = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
 
                         SpacerHeight()
-
-                        OutlinedTextField(
-                            value = userInputTranslation,
-                            onValueChange = { userInputTranslation = it },
-                            label = { Text("Translate the sentence") },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .focusRequester(focusRequesterTranslation)
-                        )
-
-                        SpacerHeight(dp = 8)
+                        // Action buttons
                         StandardButton(
                             onClick = {
-                                val isCorrect = userInputTranslation.isGoodMatch(translation)
-                                if (isCorrect) totalScore += 1f
-
-                                // Add to question/answer list
-                                questionAnswerList.add(Pair("Source: $sourceSentence", userInputTranslation))
-
-                                if (currentRecordIndex + 1 < records.size) {
-                                    // Move to the next record
-                                    currentRecordIndex++
-                                    currentQuestion = 0
-                                    userInputTranslation = ""
-                                } else {
-                                    // Show results if it's the last record
-                                    showResults = true
-                                }
+                                loadNextChunk(chunkId + 1) // Load the next chunk
+                                navController.navigate(LEARN)
                             },
-                            text = "Submit"
+                            text = "Learn new vocabulary"
                         )
+                        SpacerHeight()
+                        StandardButton(
+                            onClick = {
+                                currentRecordIndex = 0
+                                currentQuestion = 0
+                                questionAnswerList.clear()
+                                totalScore = 0f
+                                showResults = false
+                                navController.navigate(LEARN)
+                            },
+                            text = "Keep practicing current vocabulary"
+                        )
+                    }
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Top
+                    ) {
+
+                        SpacerHeight()
+                        // First question: jumbled sentence
+                        if (currentQuestion == 0) {
+                            OutlinedTextField(
+                                value = jumbledSentence,
+                                onValueChange = {},
+                                label = { Text("Jumbled Sentence") },
+                                readOnly = true,
+                                modifier = Modifier.fillMaxWidth(),
+                                textStyle = monoTextStyle
+                            )
+
+                            SpacerHeight(dp = 8)
+                            OutlinedTextField(
+                                value = userInputJumbled,
+                                onValueChange = { userInputJumbled = it },
+                                label = { Text("Enter correct sentence") },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .focusRequester(focusRequesterJumbled),
+                                textStyle = monoTextStyle
+                            )
+
+                            SpacerHeight(dp = 8)
+                            StandardButton(
+                                onClick = {
+                                    val isCorrect = userInputJumbled.isGoodMatch(sourceSentence)
+                                    if (isCorrect) totalScore += 1f
+
+                                    // Add to question/answer list
+                                    questionAnswerList.add(
+                                        Pair(
+                                            "Jumbled: $jumbledSentence",
+                                            userInputJumbled
+                                        )
+                                    )
+
+                                    userInputJumbled = ""
+                                    currentQuestion = 1 // Move to the next question
+                                },
+                                text = "Submit"
+                            )
+                        }
+
+                        // Second question: source sentence
+                        if (currentQuestion == 1) {
+                            OutlinedTextField(
+                                value = sourceSentence,
+                                onValueChange = {},
+                                label = { Text("Source Sentence") },
+                                readOnly = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            SpacerHeight()
+
+                            OutlinedTextField(
+                                value = userInputTranslation,
+                                onValueChange = { userInputTranslation = it },
+                                label = { Text("Translate the sentence") },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .focusRequester(focusRequesterTranslation)
+                            )
+
+                            SpacerHeight(dp = 8)
+                            StandardButton(
+                                onClick = {
+                                    val isCorrect = userInputTranslation.isGoodMatch(translation)
+                                    if (isCorrect) totalScore += 1f
+
+                                    // Add to question/answer list
+                                    questionAnswerList.add(
+                                        Pair(
+                                            "Source: $sourceSentence",
+                                            userInputTranslation
+                                        )
+                                    )
+
+                                    if (currentRecordIndex + 1 < records.size) {
+                                        // Move to the next record
+                                        currentRecordIndex++
+                                        currentQuestion = 0
+                                        userInputTranslation = ""
+                                    } else {
+                                        // Show results if it's the last record
+                                        showResults = true
+                                    }
+                                },
+                                text = "Submit"
+                            )
+                        }
                     }
                 }
             }
