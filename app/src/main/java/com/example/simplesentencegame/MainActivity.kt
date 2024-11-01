@@ -48,6 +48,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -551,11 +552,11 @@ fun TestChunk(
     val focusRequesterJumbled = remember { FocusRequester() }
     val focusRequesterTranslation = remember { FocusRequester() }
 
-    var currentRecordIndex by remember { mutableStateOf(0) }
-    var currentQuestion by remember { mutableStateOf(0) } // 0 = jumbled sentence, 1 = source sentence
+    var currentRecordIndex by remember { mutableIntStateOf(0) }
+    var currentQuestion by remember { mutableIntStateOf(0) } // 0 = jumbled sentence, 1 = source sentence
     var userInputJumbled by remember { mutableStateOf("") }
     var userInputTranslation by remember { mutableStateOf("") }
-    var totalScore by remember { mutableStateOf(0f) } // Total score for the test
+    var totalScore by remember { mutableFloatStateOf(0f) } // Total score for the test
     var showResults by remember { mutableStateOf(false) }
 
     // To track questions and user answers
@@ -598,20 +599,23 @@ fun TestChunk(
                     val resultText = if (percentage >= 80) {
                         "Well done, you scored $totalScore out of $maxScore (${percentage.toInt()}%)"
                     } else {
-                        "More practice needed! You scored $totalScore out of $maxScore (${percentage.toInt()}%)"
+                        "More practice needed! You scored $totalScore out of $maxScore (${percentage.toInt()}%)\n"
                     }
 
                     Column(
                         modifier = Modifier
                             .fillMaxSize(),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
+                        verticalArrangement = Arrangement.Top
                     ) {
-                        Text(resultText)
+                        SpacerHeight(16)
+                        Text(resultText, textAlign = TextAlign.Center)
 
                         // Display questions and user answers side by side
                         LazyColumn(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp ),
                             horizontalAlignment = Alignment.Start
                         ) {
                             items(questionAnswerList) { (question, answer) ->
@@ -712,7 +716,8 @@ fun TestChunk(
                                 onValueChange = {},
                                 label = { Text("Source Sentence") },
                                 readOnly = true,
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier.fillMaxWidth(),
+                                textStyle = monoTextStyle
                             )
 
                             SpacerHeight()
