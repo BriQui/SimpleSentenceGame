@@ -14,6 +14,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -36,6 +37,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -195,7 +198,7 @@ class MainActivity : ComponentActivity() {
                 composable(REVIEW) {
                     // shift+F6 replace "records" with "cards"
                     // replace records with all chunks with chunkId > 0
-                    LearnSentences(REVIEW,
+                    ReviewSentences(
                         navController, records, this@MainActivity) { text -> text.speak(tts) }
                     // update db with new priority, attemptCount, etc.
                 }
@@ -219,7 +222,7 @@ class MainActivity : ComponentActivity() {
                         chunkId = currentChunkId
                     ) { nextChunkId ->
                         currentChunkId = nextChunkId
-                        records = loadChunkFromDb(db, currentChunkId)
+                        records = loadChunkFromDb(db, nextChunkId)
                     }
                 }
                 composable(VOCAB) {
@@ -319,7 +322,7 @@ fun LearnSentences(
                 // display the appropriate learning option
                 when (learningOption) {
                     LEARN -> {
-                        HeaderWithImage(headerText = LEARN, showSecondaryInfo = false)
+                        HeaderWithImage(headerText = LEARN)
                         answerSentence = sourceSentence
                         if (!spoken) {
                             speak(sourceSentence)
@@ -334,24 +337,8 @@ fun LearnSentences(
                             textStyle = monoTextStyle
                         )
                     }
-                    REVIEW -> {
-                        HeaderWithImage(headerText = REVIEW, showSecondaryInfo = false)
-                        answerSentence = sourceSentence
-                        if (!spoken) {
-                            speak(sourceSentence)
-                            spoken = true
-                        }
-                        SentenceDisplay(
-                            testSentence = gameSentence,
-                            answerSentence = answerSentence,
-                            flashAnswerSentence = false,
-                            showRefreshButton = true,
-                            onRefresh = { onRefresh() },
-                            textStyle = monoTextStyle
-                        )
-                    }
                     PRACTICE_SOURCE -> {
-                        HeaderWithImage(headerText = PRACTICE_SOURCE, showSecondaryInfo = false)
+                        HeaderWithImage(headerText = PRACTICE_SOURCE)
                         answerSentence = translation
                         if (!spoken) {
                             speak(sourceSentence)
@@ -367,7 +354,7 @@ fun LearnSentences(
                         )
                     }
                     PRACTICE_TARGET -> {
-                        HeaderWithImage(headerText = PRACTICE_TARGET, showSecondaryInfo = false)
+                        HeaderWithImage(headerText = PRACTICE_TARGET)
                         answerSentence = sourceSentence
                         if (!spoken) {
                             speak(sourceSentence)
@@ -399,7 +386,7 @@ fun LearnSentences(
                     textStyle = monoTextStyle
                 )
 
-                // check user input, if good→reward + Next sentence button else beep
+                // check user input, if good→reward + Continue button else beep
                 SpacerHeight(dp = 2)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -413,9 +400,9 @@ fun LearnSentences(
                                 userInput = ""
                                 spoken = false
                                 showTickMark = false
-                                showNextSentenceButton = false // Hide "Next sentence" button
+                                showNextSentenceButton = false // Hide "Continue" button
                             },
-                            text = "Next sentence"
+                            text = "Continue"
                         )
                         if (showGoToNextOptionButton) {
                             SpacerHeight(dp = 8) // Spacing between buttons
@@ -453,8 +440,7 @@ fun LearnSentences(
                     }
                 }
                 // show translation if applicable for learning option
-                if (learningOption == LEARN
-                    || learningOption == REVIEW) {
+                if (learningOption == LEARN) {
                     SpacerHeight()
                     OutlinedTextField(
                         value = translation,
@@ -541,6 +527,313 @@ fun LearnSentences(
 
 @ExperimentalMaterial3Api
 @Composable
+fun ReviewSentences(
+    navController: NavController,
+    records: List<FlashCard>,
+    context: MainActivity,
+    speak: (String) -> Unit
+) {
+    // State variables
+    var currentRecordIndex by remember { mutableIntStateOf(0) }
+    var userInput by remember { mutableStateOf("") }
+    var showTickMark by remember { mutableStateOf(false) }
+    var score by remember { mutableIntStateOf(0) }
+    var showLottieAnimation by remember { mutableStateOf(false) }
+    val lottieComposition by rememberLottieComposition(LottieCompositionSpec.Asset("well_done.json"))
+    var spoken by remember { mutableStateOf(false) }
+    var flashAnswerSentence by remember { mutableStateOf(true) }
+    var refreshButton by remember { mutableIntStateOf(0) }
+    var showNextSentenceButton by remember { mutableStateOf(false) }
+    var reviewPhase by remember { mutableStateOf(PRACTICE_SOURCE) }
+    var showAllItemsReviewedPopup by remember { mutableStateOf(false) }
+    var showNoItemsPopup by remember { mutableStateOf(records.isEmpty()) }
+    var showCheatPopup by remember { mutableStateOf(false) }
+    var showCheatButton by remember { mutableStateOf(false) }
+
+    val coroutineScope = rememberCoroutineScope()
+
+    // Ensure valid currentRecordIndex within records range
+    val currentRecord = if (records.isNotEmpty()) records[currentRecordIndex] else null
+    val sourceSentence = currentRecord?.sourceSentence ?: ""
+    val gameSentence = currentRecord?.gameSentence ?: ""
+    val translation = currentRecord?.translation ?: ""
+    var answerSentence = ""
+
+    val timeFactorPerChar = TIME_FACTOR_PER_CHAR
+    val calculatedDelay = sourceSentence.length.times(timeFactorPerChar)
+
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(gameSentence, refreshButton) {
+        flashAnswerSentence = true
+        delay(calculatedDelay.toLong())
+        flashAnswerSentence = false
+    }
+
+    fun onRefresh() {
+        refreshButton += 1
+        speak(answerSentence)
+    }
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
+
+    Scaffold(
+        topBar = {
+            CustomTopAppBar(
+                navController = navController,
+                learningOption = reviewPhase
+            )
+        }
+    ) { paddingValues ->
+        val backgroundColor = if (reviewPhase == PRACTICE_SOURCE) {
+            LightGold
+        } else {
+            LightBlue
+        }
+        Box(modifier = Modifier.padding(paddingValues)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+                    .background(backgroundColor),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Top
+            ) {
+                HeaderWithImage(headerText = REVIEW)
+
+                if (showNoItemsPopup) {
+                    AlertDialog(
+                        onDismissRequest = { showNoItemsPopup = false },
+                        title = { Text("No items to review") },
+                        text = { Text("There are no items to review.") },
+                        confirmButton = {
+                            Button(onClick = {
+                                showNoItemsPopup = false
+                                navController.navigate("Learn")
+                            }) {
+                                Text("Continue learning")
+                            }
+                        }
+                    )
+                }
+
+                if (showAllItemsReviewedPopup) {
+                    AlertDialog(
+                        onDismissRequest = { showAllItemsReviewedPopup = false },
+                        title = {
+                            Text(
+                                text = "Review complete",
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Center
+                            )
+                        },
+                        confirmButton = {
+                            Box(
+                                modifier = Modifier.fillMaxWidth(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Button(
+                                    onClick = {
+                                        showAllItemsReviewedPopup = false
+                                        navController.navigate(HOME)
+                                    }
+                                ) {
+                                    Text("Continue")
+                                }
+                            }
+                        }
+                    )
+                }
+
+                if (showCheatPopup) {
+                    AlertDialog(
+                        onDismissRequest = { showCheatPopup = false },
+                        title = { Text("Answer") },
+                        text = { Text(answerSentence) },
+                        confirmButton = {
+                            Button(onClick = { showCheatPopup = false }) {
+                                Text("Got it")
+                            }
+                        }
+                    )
+                }
+
+                when (reviewPhase) {
+                    PRACTICE_SOURCE -> {
+                        HeaderWithImage(headerText = PRACTICE_SOURCE, showSecondaryInfo = false)
+                        answerSentence = translation
+                        if (!spoken) {
+                            speak(sourceSentence)
+                            spoken = true
+                        }
+                        SentenceDisplay(
+                            testSentence = sourceSentence,
+                            answerSentence = answerSentence,
+                            flashAnswerSentence = false,
+                            onRefresh = { onRefresh() },
+                            showRefreshButton = false,
+                            textStyle = monoTextStyle
+                        )
+                    }
+                    PRACTICE_TARGET -> {
+                        HeaderWithImage(headerText = PRACTICE_TARGET, showSecondaryInfo = false)
+                        answerSentence = sourceSentence
+                        if (!spoken) {
+                            speak(sourceSentence)
+                            spoken = true
+                        }
+                        SentenceDisplay(
+                            testSentence = translation,
+                            answerSentence = answerSentence,
+                            flashAnswerSentence = false,
+                            showRefreshButton = false,
+                            onRefresh = { onRefresh() },
+                            textStyle = monoTextStyle
+                        )
+                    }
+                    else -> {
+                        Log.d(DEBUG, "bad review phase - reviewPhase: $reviewPhase, currentRecordIndex: $currentRecordIndex, records.size: ${records.size}")
+                        throw Exception("bad review phase")
+                    }
+                }
+
+                OutlinedTextField(
+                    value = userInput,
+                    onValueChange = { userInput = it },
+                    label = { Text("Enter full sentence here…") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester),
+                    textStyle = monoTextStyle
+                )
+
+                SpacerHeight()
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    if (showNextSentenceButton) {
+                        StandardButton(
+                            onClick = {
+                                // Check if we are at the last item in the current phase
+                                if (currentRecordIndex == records.lastIndex) {
+                                    if (reviewPhase == PRACTICE_SOURCE) {
+                                        // Move to next review phase after completing all items in the current phase
+                                        reviewPhase = PRACTICE_TARGET
+                                        currentRecordIndex = 0 // Reset index for the next phase
+                                    } else {
+                                        // End of the PRACTICE_TARGET phase; show completion popup
+                                        showAllItemsReviewedPopup = true
+                                        showLottieAnimation = true
+                                    }
+                                } else {
+                                    // Move to the next item in the current phase
+                                    currentRecordIndex++
+                                }
+
+                                // Reset variables for the new item
+                                userInput = ""
+                                spoken = false
+                                showTickMark = false
+                                showNextSentenceButton = false
+                                showCheatButton = false
+                            },
+                            text = "Continue"
+                        )
+                    } else {
+                        StandardButton(
+                            onClick = {
+                                if (userInput.isGoodMatch(answerSentence)) {
+                                    showTickMark = true
+                                    speak(sourceSentence)
+                                    coroutineScope.launch {
+                                        score += 1
+                                        showNextSentenceButton = true
+                                    }
+                                    showCheatButton = false
+                                } else {
+                                    showToastWithBeep(context, "Try again!", playNiceBeep = false)
+                                    showCheatButton = true
+                                }
+                            },
+                            text = "Submit"
+                        )
+                    }
+                }
+
+                // "Cheat" Button - Only visible if the user gets the answer wrong
+                if (showCheatButton) {
+                    StandardButton(
+                        onClick = { showCheatPopup = true },
+                        text = "Cheat"
+                    )
+                }
+                // Progress bar
+                SpacerHeight()
+                val progress = if (reviewPhase == PRACTICE_SOURCE) {
+                    score / records.size.toFloat() * 0.5f
+                } else {
+                    0.5f + score / records.size.toFloat() * 0.5f
+                }
+
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .border(2.dp, Color.Black)
+                        .fillMaxWidth()
+                ) {
+                    LinearProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(25.dp),
+                        color = LightGreen,
+                    )
+                    Text(
+                        text = "${(progress * 100).toInt()}%",
+                        color = Color.Black,
+                        modifier = Modifier.align(Alignment.Center)
+                    )
+                }
+
+                SpacerHeight()
+                if (showTickMark) {
+                    Image(
+                        painter = painterResource(id = R.drawable.tick_mark),
+                        contentDescription = "Correct Answer",
+                        modifier = Modifier
+                            .size(80.dp)
+                            .padding(top = 16.dp)
+                    )
+                }
+            }
+
+            if (showLottieAnimation) {
+                LaunchedEffect(Unit) {
+                    delay(1500)
+                    showLottieAnimation = false
+                }
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .fillMaxSize()
+                        .padding(top = 32.dp)
+                ) {
+                    LottieAnimation(
+                        composition = lottieComposition,
+                        iterations = LottieConstants.IterateForever
+                    )
+                }
+            }
+        }
+    }
+}
+
+@ExperimentalMaterial3Api
+@Composable
 fun TestChunk(
     learningOption: String,
     navController: NavController,
@@ -590,7 +883,7 @@ fun TestChunk(
                     .padding(horizontal = 16.dp)
             ) {
                 SpacerHeight()
-                HeaderWithImage(headerText = TEST_CHUNK, showSecondaryInfo = false)
+                HeaderWithImage(headerText = TEST_CHUNK)
 
                 if (showResults) {
                     // Calculate the total possible score correctly
@@ -599,7 +892,7 @@ fun TestChunk(
                     val resultText = if (percentage >= 80) {
                         "Well done, you scored $totalScore out of $maxScore (${percentage.toInt()}%)"
                     } else {
-                        "More practice needed! You scored $totalScore out of $maxScore (${percentage.toInt()}%)\n"
+                        "More practice needed!\nThe score was $totalScore out of $maxScore (${percentage.toInt()}%)\n"
                     }
 
                     Column(
@@ -615,7 +908,7 @@ fun TestChunk(
                         LazyColumn(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp ),
+                                .padding(horizontal = 16.dp),
                             horizontalAlignment = Alignment.Start
                         ) {
                             items(questionAnswerList) { (question, answer) ->
@@ -635,7 +928,7 @@ fun TestChunk(
                             }
                         }
 
-                        SpacerHeight()
+                        SpacerHeight(32)
                         // Action buttons
                         StandardButton(
                             onClick = {
@@ -677,7 +970,7 @@ fun TestChunk(
                                 textStyle = monoTextStyle
                             )
 
-                            SpacerHeight(dp = 8)
+                            SpacerHeight()
                             OutlinedTextField(
                                 value = userInputJumbled,
                                 onValueChange = { userInputJumbled = it },
@@ -688,7 +981,7 @@ fun TestChunk(
                                 textStyle = monoTextStyle
                             )
 
-                            SpacerHeight(dp = 8)
+                            SpacerHeight()
                             StandardButton(
                                 onClick = {
                                     val isCorrect = userInputJumbled.isGoodMatch(sourceSentence)
@@ -721,7 +1014,6 @@ fun TestChunk(
                             )
 
                             SpacerHeight()
-
                             OutlinedTextField(
                                 value = userInputTranslation,
                                 onValueChange = { userInputTranslation = it },
@@ -731,7 +1023,7 @@ fun TestChunk(
                                     .focusRequester(focusRequesterTranslation)
                             )
 
-                            SpacerHeight(dp = 8)
+                            SpacerHeight()
                             StandardButton(
                                 onClick = {
                                     val isCorrect = userInputTranslation.isGoodMatch(translation)

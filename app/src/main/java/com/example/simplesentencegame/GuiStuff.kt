@@ -36,6 +36,9 @@ import androidx.compose.ui.unit.sp
 val monoSpace = FontFamily.Monospace
 val DeepSkyBlue = Color(0xFF00BFFF)
 val LightGreen = Color(0xFF90EE90)
+val LightGold = Color(0xFFFFECB3)
+val LightBlue = Color(0xFFB1E5FA)
+
 val monoTextStyle = TextStyle(
     fontSize = 16.sp,
     fontWeight = FontWeight.Normal,
