@@ -84,34 +84,16 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Locale
 
-// Data classes populated by SQL are in SqlStuff.kt
-// e.g. FlashCard, VocabCard.
+// Where to find stuff…
+// Data classes populated by SQL are in SqlStuff.kt, e.g. FlashCard, VocabCard.
 // Constants are in Constants.kt
 // GuiStuff.kt contains simple composables, etc.
-
-/*
-enum class Article(val value: Int) {
-    DE("de"), HET("het"), EMPTY("") }
-enum class WordType(val value: Int) {
-    NOUN("noun"), VERB("verb"), ADJECTIVE("adjective"), ADVERB("adverb"), PRONOUN("pronoun"), PREPOSITION("preposition"), CONJUNCTION("conjunction"), INTERJECTION("interjection") }
-;
-    companion object {
-        // Function to get the WordType by its integer value
-        fun fromValue(value: Int): WordType? {
-            return entries.find { it.value == value }
-        }
-    }
-}
-// Standalone function to get the WordType as a string
-fun getWordTypeAsString(value: Int): String? {
-    return WordType.fromValue(value)?.name
-}
-*/
 
 @ExperimentalMaterial3Api
 class MainActivity : ComponentActivity() {
     private lateinit var tts: TextToSpeech
     private lateinit var db: SQLiteDatabase
+    private var currentChunkId: Int = 0
 
     private fun String.speak(tts: TextToSpeech) {
         tts.speak(this, TextToSpeech.QUEUE_FLUSH, null, null)
@@ -141,7 +123,7 @@ class MainActivity : ComponentActivity() {
         Log.d(DEBUG, "MainActivity: db tables → $tables")
 
         // get previous session details
-        var (currentChunkId, flashCardPosition) = getLastSessionInfo(db)
+        var (currentChunkId, flashCardPosition) = fetchLastSessionInfo(db)
 
         // get sentences from database
         var records = loadChunkFromDb(db, currentChunkId)
@@ -196,11 +178,12 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 composable(REVIEW) {
-                    // shift+F6 replace "records" with "cards"
-                    // replace records with all chunks with chunkId > 0
-                    ReviewSentences(
-                        navController, records, this@MainActivity) { text -> text.speak(tts) }
-                    // update db with new priority, attemptCount, etc.
+                    // only show review after first chunk learned
+                    if (currentChunkId > 0) {
+                        ReviewSentences(
+                            navController, db, { text -> text.speak(tts) }, this@MainActivity
+                        )
+                    }
                 }
                 composable(LEARN) {
                     LearnSentences(LEARN,
@@ -221,6 +204,7 @@ class MainActivity : ComponentActivity() {
                         records = records,
                         chunkId = currentChunkId
                     ) { nextChunkId ->
+                        updateCurrentChunkInDb(db, records) // update cards so reviewable
                         currentChunkId = nextChunkId
                         records = loadChunkFromDb(db, nextChunkId)
                     }
@@ -243,7 +227,348 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
         tts.stop()
         tts.shutdown()
+        saveSessionInfo(db, currentChunkId, flashcardPosition = 0)
         db.close()
+    }
+}
+
+@ExperimentalMaterial3Api
+@Composable
+fun ReviewSentences(
+    navController: NavController,
+    db: SQLiteDatabase,
+    speak: (String) -> Unit,
+    context: MainActivity
+) {
+    // fetch cards due for review via spaced repetition
+    val reviewRecords = remember { mutableStateOf(fetchDueCards(db)) }
+
+    var showDialog by remember { mutableStateOf(true) }
+
+    // Use a LaunchedEffect to trigger once and not reset during recomposition
+    LaunchedEffect(Unit) {
+        if (reviewRecords.value.isEmpty()) {
+            Log.d(DEBUG, "ReviewSentences: fetchDueCards returned an empty set.")
+            reviewRecords.value = fetchTroubleCards(db)
+            if (reviewRecords.value.isEmpty()) {
+                Log.d(DEBUG, "ReviewSentences: fetchTroubleCards returned an empty set.")
+                // No due cards or troublesome cards, navigate home after a delay
+                showToastWithBeep(context, "No sentences need reviewing.", true)
+                navController.navigate(HOME)
+            } else {
+                // If there are records, show the dialog
+                showDialog = true
+            }
+        }
+    }
+
+    // Only show the dialog if showDialog is true
+    if (showDialog) {
+        AlertDialog(
+            onDismissRequest = { /* Prevent automatic dismissal */ },
+            title = { Text("No items due for review.") },
+            text = { Text("Want to review other items?") },
+            confirmButton = {
+                Button(onClick = {
+                    showDialog = false // Dismiss the dialog
+                    // Proceed with reviewing trouble cards
+                }) {
+                    Text("Yes")
+                }
+            },
+            dismissButton = {
+                Button(onClick = {
+                    showDialog = false // Dismiss the dialog
+                    navController.navigate(HOME) // Navigate home
+                }) {
+                    Text("No")
+                }
+            }
+        )
+    }
+
+    // State variables
+    var currentRecordIndex by remember { mutableIntStateOf(0) }
+    var userInput by remember { mutableStateOf("") }
+    var showTickMark by remember { mutableStateOf(false) }
+    var score by remember { mutableIntStateOf(0) }
+    var showLottieAnimation by remember { mutableStateOf(false) }
+    val lottieComposition by rememberLottieComposition(LottieCompositionSpec.Asset("well_done.json"))
+    var spoken by remember { mutableStateOf(false) }
+    var flashAnswerSentence by remember { mutableStateOf(true) }
+    var refreshButton by remember { mutableIntStateOf(0) }
+    var showNextSentenceButton by remember { mutableStateOf(false) }
+    var reviewPhase by remember { mutableStateOf(PRACTICE_SOURCE) }
+    var showAllItemsReviewedPopup by remember { mutableStateOf(false) }
+    var showCheatPopup by remember { mutableStateOf(false) }
+    var showCheatButton by remember { mutableStateOf(false) }
+
+    val coroutineScope = rememberCoroutineScope()
+
+    // Ensure valid currentRecordIndex within reviewRecords range
+    val currentRecord = if (reviewRecords.value.isNotEmpty()) reviewRecords.value[currentRecordIndex] else null
+    val sourceSentence = currentRecord?.sourceSentence ?: ""
+    val gameSentence = currentRecord?.gameSentence ?: ""
+    val translation = currentRecord?.translation ?: ""
+    var answerSentence = ""
+
+    val timeFactorPerChar = TIME_FACTOR_PER_CHAR
+    val calculatedDelay = sourceSentence.length.times(timeFactorPerChar)
+
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(gameSentence, refreshButton) {
+        flashAnswerSentence = true
+        delay(calculatedDelay.toLong())
+        flashAnswerSentence = false
+    }
+
+    fun onRefresh() {
+        refreshButton += 1
+        speak(answerSentence)
+    }
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
+
+    Scaffold(
+        topBar = {
+            CustomTopAppBar(
+                navController = navController,
+                learningOption = reviewPhase
+            )
+        }
+    ) { paddingValues ->
+        val backgroundColor = if (reviewPhase == PRACTICE_SOURCE) {
+            LightGold
+        } else {
+            LightBlue
+        }
+        Box(modifier = Modifier.padding(paddingValues)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+                    .background(backgroundColor),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Top
+            ) {
+                HeaderWithImage(headerText = REVIEW)
+
+                if (showAllItemsReviewedPopup) {
+                    AlertDialog(
+                        onDismissRequest = { showAllItemsReviewedPopup = false },
+                        title = {
+                            Text(
+                                text = "Review complete",
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Center
+                            )
+                        },
+                        text = { Text("Well done! You reviewed all items.") },
+                        confirmButton = {
+                            Box(
+                                modifier = Modifier.fillMaxWidth(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Button(
+                                    onClick = {
+                                        showAllItemsReviewedPopup = false
+                                        navController.navigate(HOME)
+                                    }
+                                ) {
+                                    Text("Continue")
+                                }
+                            }
+                        }
+                    )
+                }
+
+                if (showCheatPopup) {
+                    AlertDialog(
+                        onDismissRequest = { showCheatPopup = false },
+                        title = { Text("Answer") },
+                        text = { Text(answerSentence) },
+                        confirmButton = {
+                            Button(onClick = { showCheatPopup = false }) {
+                                Text("Got it")
+                            }
+                        }
+                    )
+                }
+
+                when (reviewPhase) {
+                    PRACTICE_SOURCE -> {
+                        HeaderWithImage(headerText = PRACTICE_SOURCE, showSecondaryInfo = false)
+                        answerSentence = translation
+                        if (!spoken) {
+                            speak(sourceSentence)
+                            spoken = true
+                        }
+                        SentenceDisplay(
+                            testSentence = sourceSentence,
+                            answerSentence = answerSentence,
+                            flashAnswerSentence = false,
+                            onRefresh = { onRefresh() },
+                            showRefreshButton = false,
+                            textStyle = monoTextStyle
+                        )
+                    }
+                    PRACTICE_TARGET -> {
+                        HeaderWithImage(headerText = PRACTICE_TARGET, showSecondaryInfo = false)
+                        answerSentence = sourceSentence
+                        if (!spoken) {
+                            speak(sourceSentence)
+                            spoken = true
+                        }
+                        SentenceDisplay(
+                            testSentence = translation,
+                            answerSentence = answerSentence,
+                            flashAnswerSentence = false,
+                            showRefreshButton = false,
+                            onRefresh = { onRefresh() },
+                            textStyle = monoTextStyle
+                        )
+                    }
+                    else -> {
+                        Log.d(DEBUG, "bad review phase - reviewPhase: $reviewPhase, currentRecordIndex: $currentRecordIndex, reviewRecords.size: ${reviewRecords.value.size}")
+                        throw Exception("bad review phase")
+                    }
+                }
+
+                SpacerHeight()
+                OutlinedTextField(
+                    value = userInput,
+                    onValueChange = { userInput = it },
+                    label = { Text(
+                        if (reviewPhase == PRACTICE_SOURCE) {
+                            "Enter English translation…"
+                        } else {
+                            "Enter Dutch sentence…"
+                        })
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester),
+                    textStyle = monoTextStyle
+                )
+
+                SpacerHeight()
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    if (showNextSentenceButton) {
+                        StandardButton(
+                            onClick = {
+                                if (currentRecordIndex == reviewRecords.value.lastIndex) {
+                                    if (reviewPhase == PRACTICE_SOURCE) {
+                                        reviewPhase = PRACTICE_TARGET
+                                        currentRecordIndex = 0
+                                    } else {
+                                        showAllItemsReviewedPopup = true
+                                        showLottieAnimation = true
+                                    }
+                                } else {
+                                    currentRecordIndex++
+                                }
+                                userInput = ""
+                                spoken = false
+                                showTickMark = false
+                                showNextSentenceButton = false
+                                showCheatButton = false
+                            },
+                            text = "Continue"
+                        )
+                    } else {
+                        StandardButton(
+                            onClick = {
+                                if (userInput.isGoodMatch(answerSentence)) {
+                                    showTickMark = true
+                                    speak(sourceSentence)
+                                    coroutineScope.launch {
+                                        score += 1
+                                        showNextSentenceButton = true
+                                        updateCardAndSaveToDb(db, reviewRecords.value[currentRecordIndex], true)
+                                    }
+                                    showCheatButton = false
+                                } else {
+                                    showToastWithBeep(context, "Try again!", playNiceBeep = false)
+                                    showCheatButton = true
+                                    updateCardAndSaveToDb(db, reviewRecords.value[currentRecordIndex], false)
+                                }
+                            },
+                            text = "Submit"
+                        )
+                    }
+                }
+
+                if (showCheatButton) {
+                    StandardButton(
+                        onClick = { showCheatPopup = true },
+                        buttonColor = LightGreen,
+                        text = "Cheat"
+                    )
+                }
+
+                SpacerHeight()
+                val progress = if (reviewPhase == PRACTICE_SOURCE) {
+                    score / reviewRecords.value.size.toFloat() * 0.5f
+                } else {
+                    0.5f + score / reviewRecords.value.size.toFloat() * 0.5f
+                }
+
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .border(2.dp, Color.Black)
+                        .fillMaxWidth()
+                ) {
+                    LinearProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(25.dp),
+                        color = LightGreen,
+                    )
+                    Text(
+                        text = "${(progress * 100).toInt()}%",
+                        color = Color.Black,
+                        modifier = Modifier.align(Alignment.Center)
+                    )
+                }
+
+                SpacerHeight()
+                if (showTickMark) {
+                    Image(
+                        painter = painterResource(id = R.drawable.tick_mark),
+                        contentDescription = "Correct Answer",
+                        modifier = Modifier
+                            .size(80.dp)
+                            .padding(top = 16.dp)
+                    )
+                }
+            }
+
+            if (showLottieAnimation) {
+                LaunchedEffect(Unit) {
+                    delay(1500)
+                    showLottieAnimation = false
+                }
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .fillMaxSize()
+                        .padding(top = 32.dp)
+                ) {
+                    LottieAnimation(
+                        composition = lottieComposition,
+                        modifier = Modifier.size(400.dp)
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -518,313 +843,6 @@ fun LearnSentences(
                             .align(Alignment.Center)
                             .padding(bottom = 16.dp),
                         textAlign = TextAlign.Center
-                    )
-                }
-            }
-        }
-    }
-}
-
-@ExperimentalMaterial3Api
-@Composable
-fun ReviewSentences(
-    navController: NavController,
-    records: List<FlashCard>,
-    context: MainActivity,
-    speak: (String) -> Unit
-) {
-    // State variables
-    var currentRecordIndex by remember { mutableIntStateOf(0) }
-    var userInput by remember { mutableStateOf("") }
-    var showTickMark by remember { mutableStateOf(false) }
-    var score by remember { mutableIntStateOf(0) }
-    var showLottieAnimation by remember { mutableStateOf(false) }
-    val lottieComposition by rememberLottieComposition(LottieCompositionSpec.Asset("well_done.json"))
-    var spoken by remember { mutableStateOf(false) }
-    var flashAnswerSentence by remember { mutableStateOf(true) }
-    var refreshButton by remember { mutableIntStateOf(0) }
-    var showNextSentenceButton by remember { mutableStateOf(false) }
-    var reviewPhase by remember { mutableStateOf(PRACTICE_SOURCE) }
-    var showAllItemsReviewedPopup by remember { mutableStateOf(false) }
-    var showNoItemsPopup by remember { mutableStateOf(records.isEmpty()) }
-    var showCheatPopup by remember { mutableStateOf(false) }
-    var showCheatButton by remember { mutableStateOf(false) }
-
-    val coroutineScope = rememberCoroutineScope()
-
-    // Ensure valid currentRecordIndex within records range
-    val currentRecord = if (records.isNotEmpty()) records[currentRecordIndex] else null
-    val sourceSentence = currentRecord?.sourceSentence ?: ""
-    val gameSentence = currentRecord?.gameSentence ?: ""
-    val translation = currentRecord?.translation ?: ""
-    var answerSentence = ""
-
-    val timeFactorPerChar = TIME_FACTOR_PER_CHAR
-    val calculatedDelay = sourceSentence.length.times(timeFactorPerChar)
-
-    val focusRequester = remember { FocusRequester() }
-
-    LaunchedEffect(gameSentence, refreshButton) {
-        flashAnswerSentence = true
-        delay(calculatedDelay.toLong())
-        flashAnswerSentence = false
-    }
-
-    fun onRefresh() {
-        refreshButton += 1
-        speak(answerSentence)
-    }
-
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
-    }
-
-    Scaffold(
-        topBar = {
-            CustomTopAppBar(
-                navController = navController,
-                learningOption = reviewPhase
-            )
-        }
-    ) { paddingValues ->
-        val backgroundColor = if (reviewPhase == PRACTICE_SOURCE) {
-            LightGold
-        } else {
-            LightBlue
-        }
-        Box(modifier = Modifier.padding(paddingValues)) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp)
-                    .background(backgroundColor),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Top
-            ) {
-                HeaderWithImage(headerText = REVIEW)
-
-                if (showNoItemsPopup) {
-                    AlertDialog(
-                        onDismissRequest = { showNoItemsPopup = false },
-                        title = { Text("No items to review") },
-                        text = { Text("There are no items to review.") },
-                        confirmButton = {
-                            Button(onClick = {
-                                showNoItemsPopup = false
-                                navController.navigate("Learn")
-                            }) {
-                                Text("Continue learning")
-                            }
-                        }
-                    )
-                }
-
-                if (showAllItemsReviewedPopup) {
-                    AlertDialog(
-                        onDismissRequest = { showAllItemsReviewedPopup = false },
-                        title = {
-                            Text(
-                                text = "Review complete",
-                                modifier = Modifier.fillMaxWidth(),
-                                textAlign = TextAlign.Center
-                            )
-                        },
-                        confirmButton = {
-                            Box(
-                                modifier = Modifier.fillMaxWidth(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Button(
-                                    onClick = {
-                                        showAllItemsReviewedPopup = false
-                                        navController.navigate(HOME)
-                                    }
-                                ) {
-                                    Text("Continue")
-                                }
-                            }
-                        }
-                    )
-                }
-
-                if (showCheatPopup) {
-                    AlertDialog(
-                        onDismissRequest = { showCheatPopup = false },
-                        title = { Text("Answer") },
-                        text = { Text(answerSentence) },
-                        confirmButton = {
-                            Button(onClick = { showCheatPopup = false }) {
-                                Text("Got it")
-                            }
-                        }
-                    )
-                }
-
-                when (reviewPhase) {
-                    PRACTICE_SOURCE -> {
-                        HeaderWithImage(headerText = PRACTICE_SOURCE, showSecondaryInfo = false)
-                        answerSentence = translation
-                        if (!spoken) {
-                            speak(sourceSentence)
-                            spoken = true
-                        }
-                        SentenceDisplay(
-                            testSentence = sourceSentence,
-                            answerSentence = answerSentence,
-                            flashAnswerSentence = false,
-                            onRefresh = { onRefresh() },
-                            showRefreshButton = false,
-                            textStyle = monoTextStyle
-                        )
-                    }
-                    PRACTICE_TARGET -> {
-                        HeaderWithImage(headerText = PRACTICE_TARGET, showSecondaryInfo = false)
-                        answerSentence = sourceSentence
-                        if (!spoken) {
-                            speak(sourceSentence)
-                            spoken = true
-                        }
-                        SentenceDisplay(
-                            testSentence = translation,
-                            answerSentence = answerSentence,
-                            flashAnswerSentence = false,
-                            showRefreshButton = false,
-                            onRefresh = { onRefresh() },
-                            textStyle = monoTextStyle
-                        )
-                    }
-                    else -> {
-                        Log.d(DEBUG, "bad review phase - reviewPhase: $reviewPhase, currentRecordIndex: $currentRecordIndex, records.size: ${records.size}")
-                        throw Exception("bad review phase")
-                    }
-                }
-
-                OutlinedTextField(
-                    value = userInput,
-                    onValueChange = { userInput = it },
-                    label = { Text("Enter full sentence here…") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(focusRequester),
-                    textStyle = monoTextStyle
-                )
-
-                SpacerHeight()
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    if (showNextSentenceButton) {
-                        StandardButton(
-                            onClick = {
-                                // Check if we are at the last item in the current phase
-                                if (currentRecordIndex == records.lastIndex) {
-                                    if (reviewPhase == PRACTICE_SOURCE) {
-                                        // Move to next review phase after completing all items in the current phase
-                                        reviewPhase = PRACTICE_TARGET
-                                        currentRecordIndex = 0 // Reset index for the next phase
-                                    } else {
-                                        // End of the PRACTICE_TARGET phase; show completion popup
-                                        showAllItemsReviewedPopup = true
-                                        showLottieAnimation = true
-                                    }
-                                } else {
-                                    // Move to the next item in the current phase
-                                    currentRecordIndex++
-                                }
-
-                                // Reset variables for the new item
-                                userInput = ""
-                                spoken = false
-                                showTickMark = false
-                                showNextSentenceButton = false
-                                showCheatButton = false
-                            },
-                            text = "Continue"
-                        )
-                    } else {
-                        StandardButton(
-                            onClick = {
-                                if (userInput.isGoodMatch(answerSentence)) {
-                                    showTickMark = true
-                                    speak(sourceSentence)
-                                    coroutineScope.launch {
-                                        score += 1
-                                        showNextSentenceButton = true
-                                    }
-                                    showCheatButton = false
-                                } else {
-                                    showToastWithBeep(context, "Try again!", playNiceBeep = false)
-                                    showCheatButton = true
-                                }
-                            },
-                            text = "Submit"
-                        )
-                    }
-                }
-
-                // "Cheat" Button - Only visible if the user gets the answer wrong
-                if (showCheatButton) {
-                    StandardButton(
-                        onClick = { showCheatPopup = true },
-                        text = "Cheat"
-                    )
-                }
-                // Progress bar
-                SpacerHeight()
-                val progress = if (reviewPhase == PRACTICE_SOURCE) {
-                    score / records.size.toFloat() * 0.5f
-                } else {
-                    0.5f + score / records.size.toFloat() * 0.5f
-                }
-
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .border(2.dp, Color.Black)
-                        .fillMaxWidth()
-                ) {
-                    LinearProgressIndicator(
-                        progress = { progress },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(25.dp),
-                        color = LightGreen,
-                    )
-                    Text(
-                        text = "${(progress * 100).toInt()}%",
-                        color = Color.Black,
-                        modifier = Modifier.align(Alignment.Center)
-                    )
-                }
-
-                SpacerHeight()
-                if (showTickMark) {
-                    Image(
-                        painter = painterResource(id = R.drawable.tick_mark),
-                        contentDescription = "Correct Answer",
-                        modifier = Modifier
-                            .size(80.dp)
-                            .padding(top = 16.dp)
-                    )
-                }
-            }
-
-            if (showLottieAnimation) {
-                LaunchedEffect(Unit) {
-                    delay(1500)
-                    showLottieAnimation = false
-                }
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .fillMaxSize()
-                        .padding(top = 32.dp)
-                ) {
-                    LottieAnimation(
-                        composition = lottieComposition,
-                        iterations = LottieConstants.IterateForever
                     )
                 }
             }

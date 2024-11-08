@@ -1,5 +1,15 @@
 package com.example.simplesentencegame
 
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
+
+fun todaySimpleFormat(): String {
+    val calendar = Calendar.getInstance()
+    val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    return dateFormat.format(calendar.time)
+}
+
 infix fun String.isGoodMatch(input: String): Boolean {
     // remove trailing spaces and period
     val trimmedInput = input.trim().trimEnd('.')

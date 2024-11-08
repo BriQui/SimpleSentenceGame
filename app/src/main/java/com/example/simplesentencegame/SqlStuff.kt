@@ -2,6 +2,27 @@ package com.example.simplesentencegame
 
 import android.database.sqlite.SQLiteDatabase
 import android.util.Log
+import android.content.ContentValues
+import android.database.SQLException
+import android.database.Cursor
+/*
+enum class Article(val value: Int) {
+    DE("de"), HET("het"), EMPTY("") }
+enum class WordType(val value: Int) {
+    NOUN("noun"), VERB("verb"), ADJECTIVE("adjective"), ADVERB("adverb"), PRONOUN("pronoun"), PREPOSITION("preposition"), CONJUNCTION("conjunction"), INTERJECTION("interjection") }
+;
+    companion object {
+        // Function to get the WordType by its integer value
+        fun fromValue(value: Int): WordType? {
+            return entries.find { it.value == value }
+        }
+    }
+}
+// Standalone function to get the WordType as a string
+fun getWordTypeAsString(value: Int): String? {
+    return WordType.fromValue(value)?.name
+}
+*/
 
 data class FlashCard(
     val cardId: Int,
@@ -182,7 +203,7 @@ fun getColumnNames(db: SQLiteDatabase, tableName: String): List<String> {
     return columnNames
 }
 
-fun getLastSessionInfo(db: SQLiteDatabase): Pair<Int, Int> {
+fun fetchLastSessionInfo(db: SQLiteDatabase): Pair<Int, Int> {
 
     val cursor = db.rawQuery("SELECT currentChunkId, flashcardPosition FROM userSession LIMIT 1", null)
 
@@ -199,3 +220,216 @@ fun getLastSessionInfo(db: SQLiteDatabase): Pair<Int, Int> {
     return Pair(chunkId, flashCardPosition)
 }
 
+fun saveSessionInfo(db: SQLiteDatabase, currentChunkId: Int, flashcardPosition: Int) {
+    val query = """
+        REPLACE INTO userSession (sessionId, currentChunkId, flashcardPosition)
+        VALUES (1, ?, ?)
+    """
+    val statement = db.compileStatement(query)
+    statement.bindLong(1, currentChunkId.toLong())
+    statement.bindLong(2, flashcardPosition.toLong())
+    statement.execute()
+    statement.close()
+}
+
+fun fetchDueCards(db: SQLiteDatabase): List<FlashCard> {
+    Log.d(DEBUG, "fetchDueCards: started")
+
+    val dueCards = mutableListOf<FlashCard>()
+    var cursor: Cursor? = null
+
+    try {
+        cursor = db.rawQuery(
+            """
+            SELECT cardId, 
+                chunkId, 
+                sourceSentence, 
+                gameSentence, 
+                translation, 
+                lastReviewed, 
+                recallStrength, 
+                easeFactor, 
+                interval 
+            FROM flashcards
+            WHERE date(lastReviewed, '+' || interval || ' days') <= date('now')
+            """.trimIndent(), null
+        )
+
+        // Fetch data from the query
+        cursor.use {
+            while (it.moveToNext()) {
+                dueCards.add(
+                    FlashCard(
+                        cardId = it.getInt(it.getColumnIndexOrThrow("cardId")),
+                        chunkId = it.getInt(it.getColumnIndexOrThrow("chunkId")),
+                        sourceSentence = it.getString(it.getColumnIndexOrThrow("sourceSentence")),
+                        gameSentence = it.getString(it.getColumnIndexOrThrow("gameSentence")),
+                        translation = it.getString(it.getColumnIndexOrThrow("translation")),
+                        lastReviewed = it.getString(it.getColumnIndexOrThrow("lastReviewed")),
+                        recallStrength = it.getInt(it.getColumnIndexOrThrow("recallStrength")),
+                        easeFactor = it.getDouble(it.getColumnIndexOrThrow("easeFactor")),
+                        interval = it.getInt(it.getColumnIndexOrThrow("interval"))
+                    )
+                )
+            }
+        }
+
+        // Log if no due cards were found
+        if (dueCards.isEmpty()) {
+            Log.d(DEBUG, "fetchDueCards: No due cards found.")
+        }
+
+    } catch (e: SQLException) {
+        Log.e("DatabaseError", "Error while fetching due cards", e)
+    } catch (e: Exception) {
+        Log.e("Error", "Unexpected error while fetching due cards", e)
+        throw e
+    } finally {
+        cursor?.close()
+    }
+
+    Log.d(DEBUG, "fetchDueCards: dueCards: $dueCards")
+    return dueCards
+}
+
+fun updateCardAndSaveToDb(db: SQLiteDatabase, card: FlashCard, isCorrect: Boolean) {
+    Log.d(DEBUG, "updateCardAndSaveToDb: started")
+    // Update recallStrength, interval, and easeFactor based on correctness
+    if (isCorrect) {
+        card.recallStrength++
+        card.interval = (card.interval * card.easeFactor).toInt().coerceAtLeast(1)
+        card.easeFactor += 0.1
+    } else {
+        card.recallStrength = 0
+        card.interval = 1
+        card.easeFactor = maxOf(card.easeFactor - 0.2, 1.3)
+    }
+
+    // Update lastReviewed to today's date in "YYYY-MM-DD"
+    card.lastReviewed = todaySimpleFormat()
+
+    Log.d(DEBUG,"updateCardAndSaveToDb: \nisCorrect: $isCorrect \nrecallStrength: ${card.recallStrength} interval:${card.interval} easeFactor:${card.easeFactor} lastReviewed:${card.lastReviewed}")
+
+    // Save the updated card details to the database
+    val values = ContentValues().apply {
+        put("lastReviewed", card.lastReviewed)
+        put("interval", card.interval)
+        put("recallStrength", card.recallStrength)
+        put("easeFactor", card.easeFactor)
+    }
+
+    try {
+        val rowsAffected = db.update(
+            "flashcards",
+            values,
+            "chunkId = ? AND cardId = ?",
+            arrayOf(card.chunkId.toString(), card.cardId.toString())
+        )
+
+        // Check if any rows were updated
+        if (rowsAffected > 0) {
+            Log.d(DEBUG, "Card updated successfully: chunkId = ${card.chunkId}, cardId = ${card.cardId}")
+        } else {
+            Log.e(DEBUG, "Failed to update card: chunkId = ${card.chunkId}, cardId = ${card.cardId}")
+            throw Exception("Failed to update card: chunkId = ${card.chunkId}, cardId = ${card.cardId}")
+        }
+    } catch (e: Exception) {
+        // Log any exceptions that occur during the update operation
+        Log.e(DEBUG, "Error updating card: ${e.message}", e)
+    }
+}
+
+fun updateCurrentChunkInDb(db: SQLiteDatabase, records: List<FlashCard>) {
+    Log.d(DEBUG, "updateCurrentChunkInDb: records:$records")
+    db.beginTransaction()
+    try {
+        for (card in records) {
+            // Set default values if they are not already set
+            card.recallStrength = card.recallStrength.takeIf { it != 0 } ?: 0
+            card.interval = card.interval.takeIf { it != 0 } ?: 1
+            card.easeFactor = card.easeFactor.takeIf { it != 0.0 } ?: 2.5
+
+            // Prepare values for the database insertion
+            val values = ContentValues().apply {
+                put("cardId", card.cardId)
+                put("chunkId", card.chunkId)
+                put("sourceSentence", card.sourceSentence)
+                put("gameSentence", card.gameSentence)
+                put("translation", card.translation)
+                put("lastReviewed", card.lastReviewed)
+                put("recallStrength", card.recallStrength)
+                put("easeFactor", card.easeFactor)
+                put("interval", card.interval)
+            }
+
+            // Insert or update the record in the 'flashcards' table
+            db.insertWithOnConflict(
+                "flashcards",
+                null,
+                values,
+                SQLiteDatabase.CONFLICT_REPLACE
+            )
+        }
+        db.setTransactionSuccessful() // Mark the transaction as successful
+    } catch (e: SQLException) {
+        Log.e("DatabaseError", "Error while updating chunk in database", e)
+    } finally {
+        db.endTransaction() // End the transaction
+    }
+}
+
+fun fetchTroubleCards(db: SQLiteDatabase): List<FlashCard> {
+    Log.d(DEBUG, "fetchTroubleCards: started")
+
+    val troubleCards = mutableListOf<FlashCard>()
+    var cursor: Cursor? = null
+
+    try {
+        cursor = db.rawQuery(
+            """
+            SELECT cardId, 
+                chunkId, 
+                sourceSentence, 
+                gameSentence, 
+                translation, 
+                lastReviewed, 
+                recallStrength, 
+                easeFactor, 
+                interval 
+            FROM flashcards
+            WHERE lastReviewed IS NOT NULL
+              AND recallStrength IS NOT NULL
+              AND easeFactor IS NOT NULL
+              AND interval IS NOT NULL
+            ORDER BY recallStrength ASC, easeFactor ASC, lastReviewed ASC
+            LIMIT 10
+            """.trimIndent(), null
+        )
+
+        // Fetch trouble cards
+        cursor.use {
+            while (it.moveToNext()) {
+                troubleCards.add(
+                    FlashCard(
+                        cardId = it.getInt(it.getColumnIndexOrThrow("cardId")),
+                        chunkId = it.getInt(it.getColumnIndexOrThrow("chunkId")),
+                        sourceSentence = it.getString(it.getColumnIndexOrThrow("sourceSentence")),
+                        gameSentence = it.getString(it.getColumnIndexOrThrow("gameSentence")),
+                        translation = it.getString(it.getColumnIndexOrThrow("translation")),
+                        lastReviewed = it.getString(it.getColumnIndexOrThrow("lastReviewed")),
+                        recallStrength = it.getInt(it.getColumnIndexOrThrow("recallStrength")),
+                        easeFactor = it.getDouble(it.getColumnIndexOrThrow("easeFactor")),
+                        interval = it.getInt(it.getColumnIndexOrThrow("interval"))
+                    )
+                )
+            }
+        }
+    } catch (e: Exception) {
+        Log.e(DEBUG, "fetchTroubleCards: Exception while fetching data", e)
+        throw Exception("fetchTroubleCards: Exception while fetching data")
+    } finally {
+        cursor?.close()
+    }
+    Log.d(DEBUG, "fetchTroubleCards: returned an empty set")
+    return troubleCards
+}
