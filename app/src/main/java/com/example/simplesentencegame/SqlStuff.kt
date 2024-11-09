@@ -5,6 +5,8 @@ import android.util.Log
 import android.content.ContentValues
 import android.database.SQLException
 import android.database.Cursor
+import android.database.sqlite.SQLiteException
+
 /*
 enum class Article(val value: Int) {
     DE("de"), HET("het"), EMPTY("") }
@@ -41,6 +43,14 @@ data class VocabCard(
     val wordType: String,
     val translation: String,
     val article: String?
+)
+
+data class UserSession(
+    // val sessionId: Int, // not used for now
+    val currentChunkId: Int,
+    val flashcardPosition: Int,
+    val userPreferences: String,
+    val lastUpdated: String
 )
 
 fun loadChunkFromDb(db: SQLiteDatabase, cardChunkId: Int): List<FlashCard> {
@@ -201,35 +211,6 @@ fun getColumnNames(db: SQLiteDatabase, tableName: String): List<String> {
     cursor.close()
 
     return columnNames
-}
-
-fun fetchLastSessionInfo(db: SQLiteDatabase): Pair<Int, Int> {
-
-    val cursor = db.rawQuery("SELECT currentChunkId, flashcardPosition FROM userSession LIMIT 1", null)
-
-    var chunkId = 0
-    var flashCardPosition = 0
-
-    // Check if the cursor has data and move to the first row
-    if (cursor.moveToFirst()) {
-        chunkId = cursor.getInt(cursor.getColumnIndexOrThrow("currentChunkId"))
-        flashCardPosition = cursor.getInt(cursor.getColumnIndexOrThrow("flashcardPosition"))
-    }
-
-    cursor.close()
-    return Pair(chunkId, flashCardPosition)
-}
-
-fun saveSessionInfo(db: SQLiteDatabase, currentChunkId: Int, flashcardPosition: Int) {
-    val query = """
-        REPLACE INTO userSession (sessionId, currentChunkId, flashcardPosition)
-        VALUES (1, ?, ?)
-    """
-    val statement = db.compileStatement(query)
-    statement.bindLong(1, currentChunkId.toLong())
-    statement.bindLong(2, flashcardPosition.toLong())
-    statement.execute()
-    statement.close()
 }
 
 fun fetchDueCards(db: SQLiteDatabase): List<FlashCard> {
@@ -432,4 +413,73 @@ fun fetchTroubleCards(db: SQLiteDatabase): List<FlashCard> {
     }
     Log.d(DEBUG, "fetchTroubleCards: returned an empty set")
     return troubleCards
+}
+
+fun saveSessionInfo(db: SQLiteDatabase, currentChunkId: Int, flashcardPosition: Int, userPreferences: String = "{}") {
+    Log.d(DEBUG,"saveSessionInfo: started→ currentChunkId:$currentChunkId, flashcardPosition:$flashcardPosition, userPreferences:$userPreferences")
+    val query = """
+        REPLACE INTO userSession (currentChunkId, flashcardPosition, userPreferences, lastUpdated)
+        VALUES (?, ?, ?, ?)
+    """
+    try {
+        val statement = db.compileStatement(query)
+        statement.bindLong(1, currentChunkId.toLong())
+        statement.bindLong(2, flashcardPosition.toLong())
+        statement.bindString(3, userPreferences)
+        statement.bindString(4, todaySimpleFormat()) // Set lastUpdated to today's date in the correct format
+
+        statement.execute()
+        statement.close()
+    } catch (e: SQLiteException) {
+        Log.e(DEBUG,"saveSessionInfo: Database error while saving session info: ${e.message}")
+        throw Exception("saveSessionInfo: Database error while saving session info: ${e.message}")
+    } catch (e: Exception) {
+        Log.e(DEBUG, "saveSessionInfo: Unexpected error while saving session info: ${e.message}")
+        throw Exception("saveSessionInfo: Unexpected error while saving session info: ${e.message}")
+    }
+}
+
+fun fetchLastSessionInfo(db: SQLiteDatabase): UserSession {
+    var userSession: UserSession? = null
+
+    try {
+        val cursor = db.rawQuery(
+            """
+            SELECT currentChunkId, flashcardPosition, userPreferences, lastUpdated
+            FROM userSession
+            LIMIT 1
+            """, null
+        )
+
+        if (cursor.moveToFirst()) {
+            val currentChunkId = cursor.getInt(cursor.getColumnIndexOrThrow("currentChunkId"))
+            val flashcardPosition = cursor.getInt(cursor.getColumnIndexOrThrow("flashcardPosition"))
+            val userPreferences = cursor.getString(cursor.getColumnIndexOrThrow("userPreferences"))
+            val lastUpdated = cursor.getString(cursor.getColumnIndexOrThrow("lastUpdated"))
+
+            userSession = UserSession(currentChunkId, flashcardPosition, userPreferences, lastUpdated)
+        } else {
+            // No session found; insert a default row
+            val defaultValues = ContentValues().apply {
+                put("currentChunkId", 0)
+                put("flashcardPosition", 0)
+                put("userPreferences", "{}") // Empty JSON object as default
+                put("lastUpdated", todaySimpleFormat())
+            }
+
+            val newRowId = db.insert("userSession", null, defaultValues)
+
+            if (newRowId != -1L) {
+                userSession = UserSession(0, 0, "{}", todaySimpleFormat())
+            } else {
+                // Handle insertion error; return default UserSession
+                println("Error: Failed to insert default session row.")
+            }
+        }
+        cursor.close()
+    } catch (e: Exception) {
+        println("Error fetching last session info: ${e.message}")
+    }
+
+    return userSession ?: UserSession(0, 0, "{}", todaySimpleFormat())
 }

@@ -123,7 +123,10 @@ class MainActivity : ComponentActivity() {
         Log.d(DEBUG, "MainActivity: db tables → $tables")
 
         // get previous session details
-        var (currentChunkId, flashCardPosition) = fetchLastSessionInfo(db)
+        var (currentChunkId,
+            flashCardPosition,
+            userPreferences,
+            lastUpdated) = fetchLastSessionInfo(db)
 
         // get sentences from database
         var records = loadChunkFromDb(db, currentChunkId)
@@ -204,7 +207,7 @@ class MainActivity : ComponentActivity() {
                         records = records,
                         chunkId = currentChunkId
                     ) { nextChunkId ->
-                        updateCurrentChunkInDb(db, records) // update cards so reviewable
+                        updateCurrentChunkInDb(db, records) // update so cards are reviewable
                         currentChunkId = nextChunkId
                         records = loadChunkFromDb(db, nextChunkId)
                     }
@@ -222,12 +225,18 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // Clean up TextToSpeech resources when activity is destroyed
+    // clean up to ensure session info saved
+    override fun onPause() {
+        super.onPause()
+        saveSessionInfo(db, currentChunkId, flashcardPosition = 0)
+        Log.d(DEBUG, "onPause: Session info saved.")
+    }
+
+    // Clean up when activity is destroyed
     override fun onDestroy() {
         super.onDestroy()
         tts.stop()
         tts.shutdown()
-        saveSessionInfo(db, currentChunkId, flashcardPosition = 0)
         db.close()
     }
 }
@@ -317,6 +326,7 @@ fun ReviewSentences(
 
     val focusRequester = remember { FocusRequester() }
 
+    // redundant but leave for possible future use, i.e. may want to use refresh button.
     LaunchedEffect(gameSentence, refreshButton) {
         flashAnswerSentence = true
         delay(calculatedDelay.toLong())
@@ -410,7 +420,7 @@ fun ReviewSentences(
                             testSentence = sourceSentence,
                             answerSentence = answerSentence,
                             flashAnswerSentence = false,
-                            onRefresh = { onRefresh() },
+                            onRefresh = { onRefresh() }, // redundant but leave for possible future use
                             showRefreshButton = false,
                             textStyle = monoTextStyle
                         )
@@ -427,7 +437,7 @@ fun ReviewSentences(
                             answerSentence = answerSentence,
                             flashAnswerSentence = false,
                             showRefreshButton = false,
-                            onRefresh = { onRefresh() },
+                            onRefresh = { onRefresh() }, // redundant but leave for possible future use
                             textStyle = monoTextStyle
                         )
                     }
@@ -445,7 +455,7 @@ fun ReviewSentences(
                         if (reviewPhase == PRACTICE_SOURCE) {
                             "Enter English translation…"
                         } else {
-                            "Enter Dutch sentence…"
+                            "Enter Dutch sentence"
                         })
                     },
                     modifier = Modifier

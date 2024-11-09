@@ -100,8 +100,8 @@ fun StandardButton(
 fun SentenceDisplay(
     testSentence: String,
     answerSentence: String,
-    flashAnswerSentence: Boolean,
-    showRefreshButton: Boolean,
+    flashAnswerSentence: Boolean = false,
+    showRefreshButton: Boolean = false,
     onRefresh: () -> Unit,
     textStyle: TextStyle
 ) {
