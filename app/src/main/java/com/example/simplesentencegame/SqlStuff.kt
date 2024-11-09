@@ -415,12 +415,15 @@ fun fetchTroubleCards(db: SQLiteDatabase): List<FlashCard> {
     return troubleCards
 }
 
-fun saveSessionInfo(db: SQLiteDatabase, currentChunkId: Int, flashcardPosition: Int, userPreferences: String = "{}") {
-    Log.d(DEBUG,"saveSessionInfo: started→ currentChunkId:$currentChunkId, flashcardPosition:$flashcardPosition, userPreferences:$userPreferences")
+fun saveSessionInfo(db: SQLiteDatabase, currentChunkId: Int, flashcardPosition: Int, userPreferences: String) {
+    Log.d(DEBUG, "saveSessionInfo: started→ currentChunkId:$currentChunkId, flashcardPosition:$flashcardPosition, userPreferences:$userPreferences")
+
     val query = """
-        REPLACE INTO userSession (currentChunkId, flashcardPosition, userPreferences, lastUpdated)
-        VALUES (?, ?, ?, ?)
+        UPDATE userSession
+        SET currentChunkId = ?, flashcardPosition = ?, userPreferences = ?, lastUpdated = ?
+        WHERE sessionId = 1
     """
+
     try {
         val statement = db.compileStatement(query)
         statement.bindLong(1, currentChunkId.toLong())
@@ -428,10 +431,16 @@ fun saveSessionInfo(db: SQLiteDatabase, currentChunkId: Int, flashcardPosition: 
         statement.bindString(3, userPreferences)
         statement.bindString(4, todaySimpleFormat()) // Set lastUpdated to today's date in the correct format
 
-        statement.execute()
+        val rowsAffected = statement.executeUpdateDelete()
+
+        if (rowsAffected == 0) {
+            // If no rows were updated, throw an exception because we expect only one row to exist
+            throw Exception("No session found with sessionId = 1. The userSession table is in an invalid state.")
+        }
+
         statement.close()
     } catch (e: SQLiteException) {
-        Log.e(DEBUG,"saveSessionInfo: Database error while saving session info: ${e.message}")
+        Log.e(DEBUG, "saveSessionInfo: Database error while saving session info: ${e.message}")
         throw Exception("saveSessionInfo: Database error while saving session info: ${e.message}")
     } catch (e: Exception) {
         Log.e(DEBUG, "saveSessionInfo: Unexpected error while saving session info: ${e.message}")
@@ -440,6 +449,7 @@ fun saveSessionInfo(db: SQLiteDatabase, currentChunkId: Int, flashcardPosition: 
 }
 
 fun fetchLastSessionInfo(db: SQLiteDatabase): UserSession {
+    Log.d(DEBUG, "fetchLastSessionInfo: started")
     var userSession: UserSession? = null
 
     try {
@@ -452,34 +462,41 @@ fun fetchLastSessionInfo(db: SQLiteDatabase): UserSession {
         )
 
         if (cursor.moveToFirst()) {
-            val currentChunkId = cursor.getInt(cursor.getColumnIndexOrThrow("currentChunkId"))
-            val flashcardPosition = cursor.getInt(cursor.getColumnIndexOrThrow("flashcardPosition"))
-            val userPreferences = cursor.getString(cursor.getColumnIndexOrThrow("userPreferences"))
-            val lastUpdated = cursor.getString(cursor.getColumnIndexOrThrow("lastUpdated"))
+            // Session found, retrieve it, handling possible null values
+            val currentChunkId = if (cursor.isNull(cursor.getColumnIndexOrThrow("currentChunkId"))) {
+                0 // Or some default value you prefer for null
+            } else {
+                cursor.getInt(cursor.getColumnIndexOrThrow("currentChunkId"))
+            }
+
+            val flashcardPosition = if (cursor.isNull(cursor.getColumnIndexOrThrow("flashcardPosition"))) {
+                0 // Or some default value you prefer for null
+            } else {
+                cursor.getInt(cursor.getColumnIndexOrThrow("flashcardPosition"))
+            }
+
+            val userPreferences = if (cursor.isNull(cursor.getColumnIndexOrThrow("userPreferences"))) {
+                "{}" // Default empty JSON object as fallback
+            } else {
+                cursor.getString(cursor.getColumnIndexOrThrow("userPreferences"))
+            }
+
+            val lastUpdated = if (cursor.isNull(cursor.getColumnIndexOrThrow("lastUpdated"))) {
+                todaySimpleFormat() // Use today's date as default if null
+            } else {
+                cursor.getString(cursor.getColumnIndexOrThrow("lastUpdated"))
+            }
 
             userSession = UserSession(currentChunkId, flashcardPosition, userPreferences, lastUpdated)
         } else {
-            // No session found; insert a default row
-            val defaultValues = ContentValues().apply {
-                put("currentChunkId", 0)
-                put("flashcardPosition", 0)
-                put("userPreferences", "{}") // Empty JSON object as default
-                put("lastUpdated", todaySimpleFormat())
-            }
-
-            val newRowId = db.insert("userSession", null, defaultValues)
-
-            if (newRowId != -1L) {
-                userSession = UserSession(0, 0, "{}", todaySimpleFormat())
-            } else {
-                // Handle insertion error; return default UserSession
-                println("Error: Failed to insert default session row.")
-            }
+            // No session found; throw an exception
+            throw Exception("No session found in userSession table.")
         }
         cursor.close()
     } catch (e: Exception) {
-        println("Error fetching last session info: ${e.message}")
+        Log.e(DEBUG, "fetchLastSessionInfo: Error fetching last session info: ${e.message}")
+        throw Exception("fetchLastSessionInfo: Error fetching last session info: ${e.message}")
     }
 
-    return userSession ?: UserSession(0, 0, "{}", todaySimpleFormat())
+    return userSession ?: throw Exception("Error: User session could not be fetched.")
 }

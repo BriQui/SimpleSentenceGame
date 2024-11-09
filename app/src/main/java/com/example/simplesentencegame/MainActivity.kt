@@ -94,6 +94,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var tts: TextToSpeech
     private lateinit var db: SQLiteDatabase
     private var currentChunkId: Int = 0
+    private var flashcardPosition: Int = 0
+    private lateinit var userPreferences: String
 
     private fun String.speak(tts: TextToSpeech) {
         tts.speak(this, TextToSpeech.QUEUE_FLUSH, null, null)
@@ -208,6 +210,7 @@ class MainActivity : ComponentActivity() {
                         chunkId = currentChunkId
                     ) { nextChunkId ->
                         updateCurrentChunkInDb(db, records) // update so cards are reviewable
+                        saveSessionInfo(db, nextChunkId, flashcardPosition, userPreferences)
                         currentChunkId = nextChunkId
                         records = loadChunkFromDb(db, nextChunkId)
                     }
@@ -228,7 +231,7 @@ class MainActivity : ComponentActivity() {
     // clean up to ensure session info saved
     override fun onPause() {
         super.onPause()
-        saveSessionInfo(db, currentChunkId, flashcardPosition = 0)
+        saveSessionInfo(db, currentChunkId, flashcardPosition, userPreferences)
         Log.d(DEBUG, "onPause: Session info saved.")
     }
 
@@ -874,7 +877,7 @@ fun TestChunk(
     val focusRequesterTranslation = remember { FocusRequester() }
 
     var currentRecordIndex by remember { mutableIntStateOf(0) }
-    var currentQuestion by remember { mutableIntStateOf(0) } // 0 = jumbled sentence, 1 = source sentence
+    var isAskingJumbled by remember { mutableStateOf(true) } // New state to track if we're asking jumbled or translation
     var userInputJumbled by remember { mutableStateOf("") }
     var userInputTranslation by remember { mutableStateOf("") }
     var totalScore by remember { mutableFloatStateOf(0f) } // Total score for the test
@@ -888,11 +891,12 @@ fun TestChunk(
     val translation = currentRecord?.translation ?: ""
     val jumbledSentence = jumbleWords(sourceSentence).lowercase()
 
-    // Focus request based on the current question
-    LaunchedEffect(currentQuestion) {
-        when (currentQuestion) {
-            0 -> focusRequesterJumbled.requestFocus()
-            1 -> focusRequesterTranslation.requestFocus()
+    // Focus request based on the current question type
+    LaunchedEffect(isAskingJumbled) {
+        if (isAskingJumbled) {
+            focusRequesterJumbled.requestFocus()
+        } else {
+            focusRequesterTranslation.requestFocus()
         }
     }
 
@@ -905,7 +909,7 @@ fun TestChunk(
             .padding(paddingValues)
             .fillMaxSize()
         ) {
-            Column (
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(horizontal = 16.dp)
@@ -969,7 +973,7 @@ fun TestChunk(
                         StandardButton(
                             onClick = {
                                 currentRecordIndex = 0
-                                currentQuestion = 0
+                                isAskingJumbled = true
                                 questionAnswerList.clear()
                                 totalScore = 0f
                                 showResults = false
@@ -987,8 +991,8 @@ fun TestChunk(
                     ) {
 
                         SpacerHeight()
-                        // First question: jumbled sentence
-                        if (currentQuestion == 0) {
+                        // Ask jumbled sentence questions first
+                        if (isAskingJumbled) {
                             OutlinedTextField(
                                 value = jumbledSentence,
                                 onValueChange = {},
@@ -1024,14 +1028,22 @@ fun TestChunk(
                                     )
 
                                     userInputJumbled = ""
-                                    currentQuestion = 1 // Move to the next question
+
+                                    // Move to the next record
+                                    if (currentRecordIndex + 1 < records.size) {
+                                        currentRecordIndex++
+                                    } else {
+                                        // All jumbled sentences answered, switch to translation questions
+                                        isAskingJumbled = false
+                                        currentRecordIndex = 0 // Start translation from the first record
+                                    }
                                 },
                                 text = "Submit"
                             )
                         }
 
-                        // Second question: source sentence
-                        if (currentQuestion == 1) {
+                        // Ask translation questions after all jumbled questions are answered
+                        if (!isAskingJumbled) {
                             OutlinedTextField(
                                 value = sourceSentence,
                                 onValueChange = {},
@@ -1068,7 +1080,6 @@ fun TestChunk(
                                     if (currentRecordIndex + 1 < records.size) {
                                         // Move to the next record
                                         currentRecordIndex++
-                                        currentQuestion = 0
                                         userInputTranslation = ""
                                     } else {
                                         // Show results if it's the last record
