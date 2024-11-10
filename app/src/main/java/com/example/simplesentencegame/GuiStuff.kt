@@ -136,7 +136,7 @@ fun SentenceDisplay(
 fun HeaderWithImage(
     headerText: String,
     headerTextColor: Color = LightGreen,
-    showSecondaryInfo: Boolean = false
+    showImage: Boolean = false
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -153,7 +153,7 @@ fun HeaderWithImage(
                 .align(Alignment.CenterHorizontally)
         )
         // Image below the header
-        if (showSecondaryInfo) {
+        if (showImage) {
             Text(
                 text = "Goal → 1,000 words",
                 fontSize = 20.sp,

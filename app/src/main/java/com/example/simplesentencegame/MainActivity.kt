@@ -131,7 +131,7 @@ class MainActivity : ComponentActivity() {
             lastUpdated) = fetchLastSessionInfo(db)
 
         // get sentences from database
-        var records = loadChunkFromDb(db, currentChunkId)
+        var records = fetchChunkFromDb(db, currentChunkId)
         if (records.isEmpty()) throw Exception("MainActivity: No sentences found in db!!!")
 
         // get vocab from db
@@ -209,10 +209,11 @@ class MainActivity : ComponentActivity() {
                         records = records,
                         chunkId = currentChunkId
                     ) { nextChunkId ->
-                        updateCurrentChunkInDb(db, records) // update so cards are reviewable
-                        saveSessionInfo(db, nextChunkId, flashcardPosition, userPreferences)
+                        // save the chunkId for sentences user is now learning
+                        saveUserInfoToDb(db, nextChunkId, flashcardPosition, userPreferences)
+                        //
                         currentChunkId = nextChunkId
-                        records = loadChunkFromDb(db, nextChunkId)
+                        records = fetchChunkFromDb(db, nextChunkId)
                     }
                 }
                 composable(VOCAB) {
@@ -231,7 +232,7 @@ class MainActivity : ComponentActivity() {
     // clean up to ensure session info saved
     override fun onPause() {
         super.onPause()
-        saveSessionInfo(db, currentChunkId, flashcardPosition, userPreferences)
+        saveUserInfoToDb(db, currentChunkId, flashcardPosition, userPreferences)
         Log.d(DEBUG, "onPause: Session info saved.")
     }
 
@@ -413,7 +414,7 @@ fun ReviewSentences(
 
                 when (reviewPhase) {
                     PRACTICE_SOURCE -> {
-                        HeaderWithImage(headerText = PRACTICE_SOURCE, showSecondaryInfo = false)
+                        HeaderWithImage(headerText = PRACTICE_SOURCE, showImage = false)
                         answerSentence = translation
                         if (!spoken) {
                             speak(sourceSentence)
@@ -429,7 +430,7 @@ fun ReviewSentences(
                         )
                     }
                     PRACTICE_TARGET -> {
-                        HeaderWithImage(headerText = PRACTICE_TARGET, showSecondaryInfo = false)
+                        HeaderWithImage(headerText = PRACTICE_TARGET, showImage = false)
                         answerSentence = sourceSentence
                         if (!spoken) {
                             speak(sourceSentence)

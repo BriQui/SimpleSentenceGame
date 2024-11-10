@@ -53,7 +53,7 @@ data class UserSession(
     val lastUpdated: String
 )
 
-fun loadChunkFromDb(db: SQLiteDatabase, cardChunkId: Int): List<FlashCard> {
+fun fetchChunkFromDb(db: SQLiteDatabase, cardChunkId: Int): List<FlashCard> {
 
     val columns = getColumnNames(db, "flashCards")
     Log.d(DEBUG, "Columns in flashCards table: ${columns.joinToString(", ")}")
@@ -320,45 +320,6 @@ fun updateCardAndSaveToDb(db: SQLiteDatabase, card: FlashCard, isCorrect: Boolea
     }
 }
 
-fun updateCurrentChunkInDb(db: SQLiteDatabase, records: List<FlashCard>) {
-    Log.d(DEBUG, "updateCurrentChunkInDb: records:$records")
-    db.beginTransaction()
-    try {
-        for (card in records) {
-            // Set default values if they are not already set
-            card.recallStrength = card.recallStrength.takeIf { it != 0 } ?: 0
-            card.interval = card.interval.takeIf { it != 0 } ?: 1
-            card.easeFactor = card.easeFactor.takeIf { it != 0.0 } ?: 2.5
-
-            // Prepare values for the database insertion
-            val values = ContentValues().apply {
-                put("cardId", card.cardId)
-                put("chunkId", card.chunkId)
-                put("sourceSentence", card.sourceSentence)
-                put("gameSentence", card.gameSentence)
-                put("translation", card.translation)
-                put("lastReviewed", card.lastReviewed)
-                put("recallStrength", card.recallStrength)
-                put("easeFactor", card.easeFactor)
-                put("interval", card.interval)
-            }
-
-            // Insert or update the record in the 'flashcards' table
-            db.insertWithOnConflict(
-                "flashcards",
-                null,
-                values,
-                SQLiteDatabase.CONFLICT_REPLACE
-            )
-        }
-        db.setTransactionSuccessful() // Mark the transaction as successful
-    } catch (e: SQLException) {
-        Log.e("DatabaseError", "Error while updating chunk in database", e)
-    } finally {
-        db.endTransaction() // End the transaction
-    }
-}
-
 fun fetchTroubleCards(db: SQLiteDatabase): List<FlashCard> {
     Log.d(DEBUG, "fetchTroubleCards: started")
 
@@ -415,7 +376,7 @@ fun fetchTroubleCards(db: SQLiteDatabase): List<FlashCard> {
     return troubleCards
 }
 
-fun saveSessionInfo(db: SQLiteDatabase, currentChunkId: Int, flashcardPosition: Int, userPreferences: String) {
+fun saveUserInfoToDb(db: SQLiteDatabase, currentChunkId: Int, flashcardPosition: Int, userPreferences: String) {
     Log.d(DEBUG, "saveSessionInfo: started→ currentChunkId:$currentChunkId, flashcardPosition:$flashcardPosition, userPreferences:$userPreferences")
 
     val query = """
