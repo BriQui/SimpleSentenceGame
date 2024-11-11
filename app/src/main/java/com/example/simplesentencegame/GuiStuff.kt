@@ -155,7 +155,7 @@ fun HeaderWithImage(
         // Image below the header
         if (showImage) {
             Text(
-                text = "Goal → 1,000 words",
+                text = "Today's goal → 10 words!",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 fontStyle = FontStyle.Italic,

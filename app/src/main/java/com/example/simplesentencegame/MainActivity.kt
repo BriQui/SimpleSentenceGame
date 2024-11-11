@@ -164,7 +164,7 @@ class MainActivity : ComponentActivity() {
                                 ButtonConfig(PRACTICE_SOURCE, { navController.navigate(PRACTICE_SOURCE) }, LightGreen),
                                 ButtonConfig(PRACTICE_TARGET, { navController.navigate(PRACTICE_TARGET) }, LightGreen),
                                 ButtonConfig(TEST_CHUNK, { navController.navigate(TEST_CHUNK) }, LightGreen),
-                                ButtonConfig(VOCAB, { navController.navigate(VOCAB) }, DeepSkyBlue),
+                                ButtonConfig(MY_PROGRESS, { navController.navigate(MY_PROGRESS) }, DeepSkyBlue),
                                 ButtonConfig(EXTRAS, { navController.navigate(EXTRAS) }, DeepSkyBlue),
                                 ButtonConfig(HOWTO, { navController.navigate(HOWTO) }, DeepSkyBlue)
                             )
@@ -203,7 +203,7 @@ class MainActivity : ComponentActivity() {
                         navController, records, this@MainActivity) { text -> text.speak(tts) }
                 }
                 composable(TEST_CHUNK) {
-                    TestChunk(
+                    TestSentences(
                         learningOption = TEST_CHUNK,
                         navController = navController,
                         records = records,
@@ -211,16 +211,20 @@ class MainActivity : ComponentActivity() {
                     ) { nextChunkId ->
                         // save the chunkId for sentences user is now learning
                         saveUserInfoToDb(db, nextChunkId, flashcardPosition, userPreferences)
-                        //
+                        // this is the new chunk of words user will learn
                         currentChunkId = nextChunkId
                         records = fetchChunkFromDb(db, nextChunkId)
                     }
                 }
-                composable(VOCAB) {
-                    VocabScreen(navController, vocab)
+                composable(MY_PROGRESS) {
+                    if (currentChunkId > 0) {
+                        VocabScreen(navController, vocab)
+                    }
                 }
                 composable(EXTRAS) {
-                    ExtrasScreen(navController)
+                    if (currentChunkId > 0) {
+                        ExtrasScreen(navController)
+                    }
                 }
                 composable(HOWTO) {
                     HowToScreen(navController)
@@ -714,11 +718,18 @@ fun LearnSentences(
                     }
                 }
 
+                SpacerHeight()
                 // user input
                 OutlinedTextField(
                     value = userInput,
                     onValueChange = { userInput = it },
-                    label = { Text("Enter full sentence here…") },
+                        label = {
+                            when(learningOption) {
+                                LEARN -> { Text("Complete the Dutch sentence…") }
+                                PRACTICE_SOURCE -> { Text("Translate to English…")}
+                                PRACTICE_TARGET -> { Text("Enter the Dutch sentence")}
+                                }
+                            },
                     modifier = Modifier
                         .fillMaxWidth()
                         .focusRequester(focusRequester),
@@ -866,7 +877,7 @@ fun LearnSentences(
 
 @ExperimentalMaterial3Api
 @Composable
-fun TestChunk(
+fun TestSentences(
     learningOption: String,
     navController: NavController,
     records: List<FlashCard>,
@@ -1007,7 +1018,7 @@ fun TestChunk(
                             OutlinedTextField(
                                 value = userInputJumbled,
                                 onValueChange = { userInputJumbled = it },
-                                label = { Text("Enter correct sentence") },
+                                label = { Text("Unjumble the Dutch sentence") },
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .focusRequester(focusRequesterJumbled),
@@ -1048,7 +1059,7 @@ fun TestChunk(
                             OutlinedTextField(
                                 value = sourceSentence,
                                 onValueChange = {},
-                                label = { Text("Source Sentence") },
+                                label = { Text("Dutch Sentence") },
                                 readOnly = true,
                                 modifier = Modifier.fillMaxWidth(),
                                 textStyle = monoTextStyle
@@ -1058,7 +1069,7 @@ fun TestChunk(
                             OutlinedTextField(
                                 value = userInputTranslation,
                                 onValueChange = { userInputTranslation = it },
-                                label = { Text("Translate the sentence") },
+                                label = { Text("Translate the sentence to English") },
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .focusRequester(focusRequesterTranslation)
